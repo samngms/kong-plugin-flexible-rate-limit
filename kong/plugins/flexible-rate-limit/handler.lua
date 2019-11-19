@@ -84,7 +84,7 @@ function plugin:access(config)
   if redis_auth then
     ok, err = rd:auth(redis_auth)
     if not ok then 
-      kong.log("Error authenticating to Redis: " .. tostring(err))
+      kong.log.err("Error authenticating to Redis: " .. tostring(err))
       return
     end
   end
