@@ -10,7 +10,7 @@ return {
         { err_code = { type = "number" } },
         { err_msg = { type = "string" } },
         { debug = { type = "boolean", default = false } },
-        { redis_host = { type = "string", required = true } },
+        { redis_host = { type = "string" } },
         { redis_port = { type = "number" } },
         { redis_auth = { type = "string" } },
         { pool_size = { type = "number" } },

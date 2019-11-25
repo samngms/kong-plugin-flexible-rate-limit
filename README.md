@@ -6,12 +6,12 @@ The following are global config parameters
 |-----------|:---------------|:------------|
 | `redis_host` | `string` | `required`, the redis host to connect to |
 | `redis_port` | `number` | the redis port, default is `6379` |
-| `redis_auth` | `string` | the redis password, use only if defined |
+| `redis_auth` | `string` | the redis password, Redis authentication is used only if defined |
 | `debug` | `boolean` | if true, will return rejection reason in HTTP response body |
 | `err_code` | `number` | if set, rejected requests will be in this code, otherwise, rejected requets will be HTTP 426 |
 | `err_msg` | `string` | if set, rejected requests will be in this code, otherwise, rejected msg will be `Too Many Requests` |
 
-Per each url path, you can specify an array with the following fields
+Per each url path and for each HTTP method, you can specify an array with the following fields
 
 | Field name | Field type | Description |
 |-----------|:-----------------|:------------|
@@ -20,39 +20,63 @@ Per each url path, you can specify an array with the following fields
 | `count` | `number` | the number of max request per window |
 
 `redis_key` is a string which supports the following variable substitutions
+- `${method}`: the request method
 - `${url}`: the url path
 - `${ip}`: the result of `kong.client.get_forwarded_ip()`
 - `${header.xxx}`: the result of `kong.request.get_header(xxx)`, note `-` is supported
 - `${query.xxx}`: the result of `kong.request.get_query()[xxx]`
 - `${post.xxx}`: the result of `kong.request.get_body()[xxx]`
 
+# Environment Variables
+
+Except writing `redis_*` in the config, the system also supports reading Redis auth string via the environment variable `FLEXIBLE_RATE_LIMIT_*`. 
+
+- `redis_host` -> `FLEXIBLE_RATE_LIMIT_REDIS_HOST`
+- `redis_port` -> `FLEXIBLE_RATE_LIMIT_REDIS_PORT`
+- `redis_auth` -> `FLEXIBLE_RATE_LIMIT_REDIS_AUTH`
+
+However, in order for this to work, you also have to add the following line in `nginx.config`
+
+```text
+env FLEXIBLE_RATE_LIMIT_REDIS_HOST;
+env FLEXIBLE_RATE_LIMIT_REDIS_PORT;
+env FLEXIBLE_RATE_LIMIT_REDIS_AUTH;
+```
+
+Also see [HERE](https://github.com/openresty/lua-nginx-module#system-environment-variable-support)
 
 # Configuration
 
 There are two types of paths in the config, `exact_match` and `pattern_match`, we currently only support `exact_match`
 
 ```js
-"/path1/path2": [
-    {
-        "redis_key": "rate_limit1:${url}:${header.My-Real-IP}",
-        "window": 10,
-        "count": 10
-    },
-    {
-        "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
-        "window": 900,
-        "count": 100
-    }
-]
+"/path1/path2": {
+    "GET": [
+        {
+            "redis_key": "rate_limit1:${url}:${header.My-Real-IP}",
+            "window": 10,
+            "count": 10
+        },
+        {
+            "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
+            "window": 900,
+            "count": 100
+        }
+    ],
+    "POST": [
+        ...
+    ]
+}
 ```
-In the above setting, the path `/path1/path2` will be rate limited with 
+In the above setting, the path `/path1/path2` `GET` will be rate limited with 
 - 10 calls in 10 seconds
 - 100 calls in 15 minutes
 
 And the limit will be per IP (assuming `My-Real-IP` is the real ip)
 
-Note, the prefix `rate_limit1` and `rate_limit2`, should be different, otherwise, they will use the same Redis key
-
+Note
+- the prefix `rate_limit1` and `rate_limit2`, should be different, otherwise, they will use the same Redis key
+- to match any HTTP method, use `*`
 
 # Testing the plugin
 
@@ -129,7 +153,7 @@ Accept: */*
 Content-Type: application/json
 Content-Length: 377
 
-{"name":"flexible-rate-limit","config":{"query":[{"name": "fullname", "type":"string", "required":false, "validation":"abc"},{"name": "age", "type":"number", "required":false, "validation":"01"}],"body":[{"name":"manager","type":"string"},{"name":"salary","type":"number"}],"class_ref":{"name":"helloclass","fields":[{"name":"id","type":"number"},{"name":"date","type":"string"}]}}}
+{"name":"flexible-rate-limit","config":{{"err_code":429,"redis_host":"localhost","exact_match":{"/path1/path2":{"GET":[{"redis_key":"rate_limit1:${url}:${header.My-Real-IP}","window":10,"count":10},{"redis_key":"rate_limit2:${url}:${header.My-Real-IP}","window":900,"count":100}]}}}}}
 ```
 
 
