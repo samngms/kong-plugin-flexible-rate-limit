@@ -24,11 +24,28 @@ for _, strategy in helpers.each_strategy() do
         redis_auth = "abcd1234",
         debug = true,
         err_code = 488,
-        exact_match = {
-          ["/get"] = {
+        pattern_match = {
+          ["^/ge%w$"] = {
+            -- it is GET, so this should be effective
+            ["GET"] = {
+              [1] = {
+                redis_key = "hello:${post.api_key}",
+                window = 1,
+                limit = 5
+              }
+            },
             ["*"] = {
               [1] = {
-                err_code = 503,
+                redis_key = "hello:${post.api_key}",
+                window = 1,
+                limit = 1
+              }
+            }
+          },
+          -- path is not digits, so it should not be effective
+          ["^%d+$"] = {
+            ["POST"] = {
+              [1] = {
                 redis_key = "hello:${post.api_key}",
                 window = 1,
                 limit = 1
@@ -98,27 +115,24 @@ for _, strategy in helpers.each_strategy() do
 
     describe("testing ", function()
 
-      it("10 requests in 1 batch", function()
-        local r = assert(client:send {
-          method = "GET",
-          path = "/get",
-          headers = {
-            host = "postman-echo.com",
-            ["Content-Type"] = "application/x-www-form-urlencoded"
-          },
-          query = "api_key=1234"
-        })
-        assert.response(r).has.status(200)
-        r = assert(client:send {
-          method = "GET",
-          path = "/get",
-          headers = {
-            host = "postman-echo.com",
-            ["Content-Type"] = "application/x-www-form-urlencoded"
-          },
-          query = "api_key=1234"
-        })
-        assert.response(r).has.status(503)
+      it("Pattern match with * as method", function()
+        for i = 1, 10, 1 do
+          local r = assert(client:send {
+            method = "GET",
+            path = "/get",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            query = "api_key=1234"
+          })
+          if i <= 5 then
+            assert.response(r).has.status(200)
+          else
+            assert.response(r).has.status(488)
+          end
+        end
+        socket.sleep(1)
       end)
 
 

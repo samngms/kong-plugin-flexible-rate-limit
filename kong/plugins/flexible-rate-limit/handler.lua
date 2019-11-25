@@ -47,6 +47,26 @@ function substituteVariables(template, url, ip, request)
   return output
 end
 
+function getCfgList(config, request, path) 
+  local urlCfg = config.exact_match and config.exact_match[path]
+  if nil ~= urlCfg and type(urlCfg) == "table" then
+    -- if the method is GET, then we try "GET" and "*"
+    local cfgList = urlCfg[kong.request.get_method()] or urlCfg["*"]
+    if nil ~= cfgList then return cfgList end
+  end
+  
+  if config.pattern_match and type(config.pattern_match) == "table" then
+    for pattern, urlCfg in pairs(config.pattern_match) do
+      if string.match(path, pattern) then
+        local cfgList = urlCfg[kong.request.get_method()] or urlCfg["*"]
+        if nil ~= cfgList then return cfgList end
+      end
+    end
+  end
+
+  return nil
+end
+
 function plugin:access(config)
   plugin.super.access(self)
 
@@ -54,7 +74,6 @@ function plugin:access(config)
   local err_code = config.err_code or 426
   local err_msg = config.err_msg or "Too Many Requests"
 
-  kong.log.info("I am here1")
   -- get per url config object
   local path = kong.request.get_path()
 
@@ -62,10 +81,10 @@ function plugin:access(config)
     path = string.gsub(path, "//", "/")
   end
 
-  local cfgList = config.exact_match and config.exact_match[path]
-  if nil == cfgList or type(cfgList) ~= "table" then
+  local cfgList = getCfgList(config, kong.request, path)
+  if nil == cfgList then
     if debug then
-      kong.log.debug("Path is not rate limited: " .. path)
+      kong.log.debug("Not rate limited: " .. kong.request.get_method() .. " " .. path)
     end
     return
   end

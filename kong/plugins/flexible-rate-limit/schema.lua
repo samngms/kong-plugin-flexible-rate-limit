@@ -22,17 +22,24 @@ return {
             type = "string"
           },
           values = {
-            type = "array",
-            elements = {
-              type = "record",
-              fields = {
-                { err_code = { type = "number" } },
-                { err_msg = { type = "string" } },
-                { redis_key = { type = "string", required = true } },
-                { window = { type = "number", default = 1 } },
-                { limit = { type = "number", required = true } },
+            -- the next key is http method
+            type = "map",
+            keys = {
+              type = "string"
+            },
+            values = {
+              type = "array",
+              elements = {
+                type = "record",
+                fields = {
+                  { err_code = { type = "number" } },
+                  { err_msg = { type = "string" } },
+                  { redis_key = { type = "string", required = true } },
+                  { window = { type = "number", default = 1 } },
+                  { limit = { type = "number", required = true } },
+                }
               }
-            }
+            }              
           }
         }},
         { pattern_match = {
@@ -42,17 +49,24 @@ return {
             type = "string"
           },
           values = {
-            type = "array",
-            elements = {
-              type = "record",
-              fields = {
-                { err_code = { type = "number" } },
-                { err_msg = { type = "string" } },
-                { redis_key = { type = "string", required = true } },
-                { window = { type = "number", default = 1 } },
-                { limit = { type = "number", required = true } },
+            -- the next key is http method
+            type = "map",
+            keys = {
+              type = "string"
+            },
+            values = {
+              type = "array",
+              elements = {
+                type = "record",
+                fields = {
+                  { err_code = { type = "number" } },
+                  { err_msg = { type = "string" } },
+                  { redis_key = { type = "string", required = true } },
+                  { window = { type = "number", default = 1 } },
+                  { limit = { type = "number", required = true } },
+                }
               }
-            }
+            }              
           }
         }}
       }

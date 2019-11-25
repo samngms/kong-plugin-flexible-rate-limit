@@ -26,29 +26,35 @@ for _, strategy in helpers.each_strategy() do
         err_code = 488,
         exact_match = {
           ["/get"] = {
-            [1] = {
-              redis_key = "hello:${query.api_key}",
-              window = 1,
-              limit = 5
+            ["*"] = {
+              [1] = {
+                redis_key = "hello:${query.api_key}",
+                window = 1,
+                limit = 5
+              }
             }
           },
           ["/post"] = {
-            [1] = {
-              redis_key = "1s:${post.api_key}",
-              window = 1,
-              limit = 5
-            },
-            [2] = {
-              redis_key = "3s:${post.api_key}",
-              window = 3,
-              limit = 8
-            },
+            ["*"] = {
+              [1] = {
+                redis_key = "1s:${post.api_key}",
+                window = 1,
+                limit = 5
+              },
+              [2] = {
+                redis_key = "3s:${post.api_key}",
+                window = 3,
+                limit = 8
+              },
+            }
           },
           ["/put"] = {
-            [1] = {
-              redis_key = "put:${header.My-IP}",
-              window = 1,
-              limit = 5
+            ["*"] = {
+              [1] = {
+                redis_key = "put:${header.My-IP}",
+                window = 1,
+                limit = 5
+              }
             }
           }
         }
