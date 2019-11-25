@@ -112,7 +112,8 @@ function plugin:access(config)
             rd:del(redis_key)
           end
         end
-        kong.response.exit(err_code, err_msg)
+        -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
+        kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
       end
     end
   end
