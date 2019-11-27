@@ -7,6 +7,7 @@ The following are global config parameters
 | `redis_host` | `string` | `required`, the redis host to connect to |
 | `redis_port` | `number` | the redis port, default is `6379` |
 | `redis_auth` | `string` | the redis password, Redis authentication is used only if defined |
+| `redis_ssl` | `boolean` | if true, use SSL to connect to redis (defaults to false) |
 | `debug` | `boolean` | if true, will return rejection reason in HTTP response body |
 | `err_code` | `number` | if set, rejected requests will be in this code, otherwise, rejected requets will be HTTP 426 |
 | `err_msg` | `string` | if set, rejected requests will be in this code, otherwise, rejected msg will be `Too Many Requests` |
@@ -34,6 +35,7 @@ Except writing `redis_*` in the config, the system also supports reading Redis a
 - `redis_host` -> `FLEXIBLE_RATE_LIMIT_REDIS_HOST`
 - `redis_port` -> `FLEXIBLE_RATE_LIMIT_REDIS_PORT`
 - `redis_auth` -> `FLEXIBLE_RATE_LIMIT_REDIS_AUTH`
+- `redis_ssl` -> `FLEXIBLE_RATE_LIMIT_REDIS_SSL`
 
 However, in order for this to work, you also have to add the following line in `nginx.config`
 
@@ -41,6 +43,7 @@ However, in order for this to work, you also have to add the following line in `
 env FLEXIBLE_RATE_LIMIT_REDIS_HOST;
 env FLEXIBLE_RATE_LIMIT_REDIS_PORT;
 env FLEXIBLE_RATE_LIMIT_REDIS_AUTH;
+env FLEXIBLE_RATE_LIMIT_REDIS_SSL;
 ```
 
 Also see [HERE](https://github.com/openresty/lua-nginx-module#system-environment-variable-support)

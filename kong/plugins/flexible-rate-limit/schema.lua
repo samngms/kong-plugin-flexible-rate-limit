@@ -13,6 +13,7 @@ return {
         { redis_host = { type = "string" } },
         { redis_port = { type = "number" } },
         { redis_auth = { type = "string" } },
+        { redis_ssl = { type = "boolean" } },
         { pool_size = { type = "number" } },
         { backlog = { type = "number" } },
         { exact_match = {
