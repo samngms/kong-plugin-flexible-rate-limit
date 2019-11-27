@@ -98,9 +98,10 @@ function plugin:access(config)
   -- `env FLEXIBLE_RATE_LIMIT_REDIS_AUTH;`
   -- see https://github.com/openresty/lua-nginx-module#system-environment-variable-support
   local redis_auth = config.redis_auth or os.getenv("FLEXIBLE_RATE_LIMIT_REDIS_AUTH")
+  local redis_ssl = config.redis_ssl or os.getenv("FLEXIBLE_RATE_LIMIT_REDIS_SSL") or false
   local pool_size = config.pool_size or 30
   local backlog = config.backlog or 100
-  local ok, err = rd:connect(redis_host, redis_port, {pool_size, backlog})
+  local ok, err = rd:connect(redis_host, redis_port, {pool_size, backlog, redis_ssl})
   if not ok then
     kong.log.err("Error connecting to Redis: " .. tostring(err))
     return

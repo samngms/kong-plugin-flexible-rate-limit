@@ -22,6 +22,7 @@ for _, strategy in helpers.each_strategy() do
       local myconfig = {
         redis_host = "10.0.2.2",
         redis_auth = "abcd1234",
+        redis_ssl =  true,
         debug = true,
         err_code = 488,
         exact_match = {
