@@ -30,14 +30,14 @@ for _, strategy in helpers.each_strategy() do
             -- it is GET, not POST, so this should not be effective
             ["POST"] = {
               [1] = {
-                redis_key = "hello:${post.api_key}",
+                redis_key = "hello:${body.api_key}",
                 window = 1,
                 limit = 1
               }
             },
             ["*"] = {
               [1] = {
-                redis_key = "hello:${post.api_key}",
+                redis_key = "hello:${body.api_key}",
                 window = 1,
                 limit = 5
               }
@@ -47,7 +47,7 @@ for _, strategy in helpers.each_strategy() do
           ["^%d+$"] = {
             ["POST"] = {
               [1] = {
-                redis_key = "hello:${post.api_key}",
+                redis_key = "hello:${body.api_key}",
                 window = 1,
                 limit = 1
               }
