@@ -87,13 +87,18 @@ function plugin:access(config)
     path = string.gsub(path, "//", "/")
   end
 
-  local redis_backoff_count = config.redis_backoff_count or 20
+  local redis_backoff_count = config.redis_backoff_count or 10
   local redis_backoff_period = (config.redis_backoff_period or 300) * 1000
-  if (sock_err_count >= redis_backoff_count) and (sock_err_time+redis_backoff_period > socket.gettime()) then
-    if debug then
-      kong.log.debug("Backoff period: " .. path)
+  if sock_err_count >= redis_backoff_count then
+    if (sock_err_time + redis_backoff_period) > socket.gettime() then
+      if debug then
+        kong.log.debug("Backoff period: " .. path)
+      end
+      return
+    else
+      -- passed the backoff_period, clear the counter
+      sock_err_count = 0
     end
-    return
   end
 
   local cfgList = getCfgList(config, kong.request, path)
