@@ -14,8 +14,11 @@ return {
         { redis_port = { type = "number" } },
         { redis_auth = { type = "string" } },
         { redis_ssl = { type = "boolean" } },
+        { redis_backoff_count = { type = "number"} },
+        { redis_backoff_period = { type = "number"} },
         { pool_size = { type = "number" } },
         { backlog = { type = "number" } },
+        { timeout = { type = "number" } },
         { exact_match = {
           type = "map",
           -- the key is the path of the url
