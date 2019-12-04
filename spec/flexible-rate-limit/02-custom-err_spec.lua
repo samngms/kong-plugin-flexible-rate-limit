@@ -30,7 +30,7 @@ for _, strategy in helpers.each_strategy() do
             ["*"] = {
               [1] = {
                 err_code = 503,
-                redis_key = "hello:${body.api_key}",
+                redis_key = "hello:${query.api_key}",
                 window = 1,
                 limit = 1
               }
