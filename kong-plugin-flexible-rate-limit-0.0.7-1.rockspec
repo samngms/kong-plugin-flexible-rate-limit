@@ -14,7 +14,7 @@ source = {
 }
 
 description = {
-  summary = "Kong Request Firewall Plugin, it can validate various types of input.",
+  summary = "Kong Flexible Rate Limiting Plugin",
   homepage = "https://github.com/samngms/kong-plugin-flexible-rate-limit",
   license = "MIT"
 }

@@ -9,6 +9,10 @@ local plugin_name = ({...})[1]:match("^kong%.plugins%.([^%.]+)")
 local plugin = require("kong.plugins.base_plugin"):extend()
 
 local redis = require("resty.redis")
+local socket = require("socket")
+
+local sock_err_count = 0
+local sock_err_time = 0
 
 -- constructor
 function plugin:new()
@@ -33,10 +37,10 @@ function substituteVariables(template, url, method, ip, request)
         local suffix = key2:sub(idx+1)
         if prefix == "header" then
             return request.get_header(suffix) or key
-        elseif prefix == "post" then
-            local post = request.get_body()
-            if nil == post then return key end
-            return post[suffix] or key
+        elseif prefix == "body" then
+            local body = request.get_body()
+            if nil == body then return key end
+            return body[suffix] or key
         elseif prefix == "query" then
             local query = request.get_query()
             if nil == query then return key end
@@ -106,6 +110,20 @@ function plugin:access(config)
     path = string.gsub(path, "//", "/")
   end
 
+  local redis_backoff_count = config.redis_backoff_count or 10
+  local redis_backoff_period = (config.redis_backoff_period or 300) * 1000
+  if sock_err_count >= redis_backoff_count then
+    if (sock_err_time + redis_backoff_period) > socket.gettime() then
+      if debug then
+        kong.log.debug("Backoff period: " .. path)
+      end
+      return
+    else
+      -- passed the backoff_period, clear the counter
+      sock_err_count = 0
+    end
+  end
+
   local cfgList = getCfgList(config, kong.request, path)
   if nil == cfgList then
     if debug then
@@ -121,15 +139,43 @@ function plugin:access(config)
   -- `env FLEXIBLE_RATE_LIMIT_REDIS_AUTH;`
   -- see https://github.com/openresty/lua-nginx-module#system-environment-variable-support
   local redis_auth = config.redis_auth or os.getenv("FLEXIBLE_RATE_LIMIT_REDIS_AUTH")
-  local redis_ssl = config.redis_ssl or os.getenv("FLEXIBLE_RATE_LIMIT_REDIS_SSL") or false
+  local b1 = config.redis_ssl 
+  local redis_ssl = false
+  if nil ~= b1 then
+    redis_ssl = b1
+  else
+    local s1 = os.getenv("FLEXIBLE_RATE_LIMIT_REDIS_SSL")
+    if nil ~= s1 and "true" == string.lower(s1) then
+      redis_ssl = true
+    end
+  end
   local pool_size = config.pool_size or 30
   local backlog = config.backlog or 100
-  local ok, err = rd:connect(redis_host, redis_port, {pool_size, backlog, redis_ssl})
+  local timeout = config.timeout
+  if nil ~= timeout and timeout > 0 then 
+    rd:set_timeout(timeout)
+  end
+  local ok, err = rd:connect(redis_host, redis_port, {pool_size = pool_size, backlog = backlog})
   if not ok then
+    sock_err_count = sock_err_count + 1
+    sock_err_time = socket.gettime()
     kong.log.err("Error connecting to Redis: " .. tostring(err))
     return
+  else
+    sock_err_count = 0
   end
-  if redis_auth then
+  -- redis_ssl is only supported in Kong 1.4, we do it manually
+  if redis_ssl then
+    local sock = rawget(rd, "_sock")
+    -- https://openresty-reference.readthedocs.io/en/latest/Lua_Nginx_API/#tcpsocksslhandshake
+    -- the first arg is reused_session, it is not so useful if the connection pool is enabled
+    local session, err = sock:sslhandshake(nil, redis_host, false)
+    if nil ~= err then
+      kong.log.err("Error sslhandshake: " .. tostring(err))
+      return
+    end
+  end
+  if nil ~= redis_auth and string.len(redis_auth) > 0 then
     ok, err = rd:auth(redis_auth)
     if not ok then 
       kong.log.err("Error authenticating to Redis: " .. tostring(err))

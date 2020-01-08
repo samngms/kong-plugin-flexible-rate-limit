@@ -36,7 +36,7 @@ for _, strategy in helpers.each_strategy() do
           ["/post"] = {
             ["*"] = {
               [1] = {
-                redis_key = "1s:${post.api_key}",
+                redis_key = "1s:${body.api_key}",
                 window = 1,
                 limit = 5,
               },
