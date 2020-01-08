@@ -21,40 +21,44 @@ for _, strategy in helpers.each_strategy() do
       local bp, route1
       local myconfig = {
         redis_host = "127.0.0.1",
+        debug = true,
         err_code = 488,
-        pattern_match = {
-          ["^/ge%w$"] = {
-            -- it is GET, not POST, so this should not be effective
-            ["POST"] = {
-              [1] = {
-                redis_key = "hello:${body.api_key}",
-                window = 1,
-                limit = 1
-              }
-            },
+        exact_match = {
+          ["/get"] = {
             ["*"] = {
               [1] = {
-                redis_key = "hello:${body.api_key}",
+                redis_key = "1s:${header.My-IP}",
                 window = 1,
-                limit = 5
-              }
-            }
-          },
-          -- path is not digits, so it should not be effective
-          ["^%d+$"] = {
-            ["POST"] = {
-              [1] = {
-                redis_key = "hello:${body.api_key}",
+                limit = 10,
+                trigger_condition = "${header.My-IP}",
+                trigger_values = {
+                  [1] = "192.168.1.101",
+                  [2] = "192.168.1.102",
+                }
+              },
+              [2] = {
+                redis_key = "2s:${header.My-IP}",
                 window = 1,
-                limit = 1
-              }
+                limit = 5,
+                trigger_condition = "${header.My-IP}",
+                not_trigger_values = {
+                  [1] = "192.168.1.101",
+                  [2] = "192.168.1.102",
+                  [3] = "192.168.1.103",
+                }
+              },
+              [3] = {
+                redis_key = "3s:${post.api_key}",
+                window = 1,
+                limit = 15
+              },
             }
           }
         }
       }
 
       if KONG_VERSION >= version("0.35.0") or
-         KONG_VERSION == version("0.15.0") then
+              KONG_VERSION == version("0.15.0") then
         --
         -- Kong version 0.15.0/1.0.0+, and
         -- Kong Enterprise 0.35+ new test helpers
@@ -111,16 +115,61 @@ for _, strategy in helpers.each_strategy() do
     end)
 
 
-    describe("testing ", function()
-
-      it("Pattern match with * as method", function()
-        for i = 1, 10, 1 do
+    describe("testing", function()
+      it("Special limit rate for `trigger_values` and bypass the rules of `not_trigger_values`", function()
+        for i = 1, 20, 1 do
+          local ip =  "192.168.1.101"
           local r = assert(client:send {
             method = "GET",
             path = "/get",
             headers = {
               host = "postman-echo.com",
-              ["Content-Type"] = "application/x-www-form-urlencoded"
+              ["Content-Type"] = "application/x-www-form-urlencoded",
+              ["My-IP"] = ip
+            },
+            query = "api_key=1234"
+          })
+          if i <= 10 then
+            assert.response(r).has.status(200)
+          else
+            assert.response(r).has.status(488)
+          end
+        end
+        socket.sleep(1)
+      end)
+
+      it("Bypass rules for `not_trigger_values`", function()
+        for i = 1, 20, 1 do
+          local ip =  "192.168.1.103"
+          local r = assert(client:send {
+            method = "GET",
+            path = "/get",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded",
+              ["My-IP"] = ip
+            },
+            query = "api_key=1234"
+          })
+          if i <= 15 then
+            assert.response(r).has.status(200)
+          else
+            assert.response(r).has.status(488)
+          end
+        end
+        socket.sleep(1)
+      end)
+
+      it("effective rules for `not_trigger_values`", function()
+        for i = 1, 10, 1 do
+          local ip =  "192.168.1.104"
+          local r = assert(client:send {
+            method = "GET",
+            path = "/get",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded",
+              ["My-IP"] = ip
             },
             query = "api_key=1234"
           })
@@ -132,8 +181,6 @@ for _, strategy in helpers.each_strategy() do
         end
         socket.sleep(1)
       end)
-
-
     end)
 
   end)

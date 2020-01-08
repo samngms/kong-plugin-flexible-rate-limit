@@ -22,8 +22,10 @@ Per each url path and for each HTTP method, you can specify an array with the fo
 | `redis_key` | `string` | Detail description see below |
 | `window` | `number` | the window of the rate limit in seconds |
 | `count` | `number` | the number of max request per window |
-
-`redis_key` is a string which supports the following variable substitutions
+| `trigger_condition` | `number` | the variable for verifying the trigger of that rate limit rule |
+| `trigger_values` | `number` | the matching value of `trigger_condition` for trigger that rate limit rule |
+| `not_trigger_values` | `number` | the matching value of `not_trigger_values` for NOT trigger that rate limit rule |
+`redis_key` and `trigger_condition` are the string which support the following variable substitutions
 - `${method}`: the request method
 - `${url}`: the url path
 - `${ip}`: the result of `kong.client.get_forwarded_ip()`
@@ -59,9 +61,18 @@ There are two types of paths in the config, `exact_match` and `pattern_match`, w
 "/path1/path2": {
     "GET": [
         {
+            "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
+            "window": 50,
+            "count": 10,
+            "trigger_condition": "${header.My-IP}",
+            "trigger_values": ["192.168.1.101","192.168.1.102"]
+        },
+        {
             "redis_key": "rate_limit1:${url}:${header.My-Real-IP}",
             "window": 10,
-            "count": 10
+            "count": 10,
+            "trigger_condition": "${header.My-IP}",
+            "not_trigger_values": ["192.168.1.101","192.168.1.102"]
         },
         {
             "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
@@ -75,7 +86,8 @@ There are two types of paths in the config, `exact_match` and `pattern_match`, w
 }
 ```
 In the above setting, the path `/path1/path2` `GET` will be rate limited with 
-- 10 calls in 10 seconds
+- 50 calls in 10 seconds if the `My-IP` in the HTTP header is EQUAL to IP "192.168.1.101" AND "192.168.1.102"
+- 10 calls in 10 seconds if the `My-IP` in the HTTP header is NOT EQUAL to IP "192.168.1.101" AND "192.168.1.102"
 - 100 calls in 15 minutes
 
 And the limit will be per IP (assuming `My-Real-IP` is the real ip)

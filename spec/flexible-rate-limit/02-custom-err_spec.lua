@@ -21,8 +21,6 @@ for _, strategy in helpers.each_strategy() do
       local bp, route1
       local myconfig = {
         redis_host = "127.0.0.1",
-        --redis_auth = "abcd1234",
-        --redis_ssl =  true,
         debug = true,
         err_code = 488,
         exact_match = {
