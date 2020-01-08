@@ -20,9 +20,7 @@ for _, strategy in helpers.each_strategy() do
     lazy_setup(function()
       local bp, route1
       local myconfig = {
-        redis_host = "10.0.2.2",
-        redis_auth = "abcd1234",
-        redis_ssl =  true,
+        redis_host = "127.0.0.1",
         debug = true,
         err_code = 488,
         exact_match = {
@@ -40,9 +38,14 @@ for _, strategy in helpers.each_strategy() do
               [1] = {
                 redis_key = "1s:${post.api_key}",
                 window = 1,
-                limit = 5
+                limit = 5,
               },
               [2] = {
+                redis_key = "2s:${post.api_key}",
+                window = 1,
+                limit = 5
+              },
+              [3] = {
                 redis_key = "3s:${post.api_key}",
                 window = 3,
                 limit = 8
@@ -200,6 +203,7 @@ for _, strategy in helpers.each_strategy() do
           if i <= 8 then
             assert.response(r).has.status(200)
           else
+            print(r)
             assert.response(r).has.status(488)
           end
         end

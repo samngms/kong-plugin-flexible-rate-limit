@@ -69,6 +69,29 @@ function getCfgList(config, request, path)
   return nil
 end
 
+function triggerConditionValid(cfg, path) -- condition config validation
+  if cfg.trigger_condition then
+    -- trigger condition validation
+    if cfg.trigger_values and cfg.not_trigger_values then
+      kong.log.err("Error trigger_condition configruation, " .. "path: " .. path .. " redis_key: " .. cfg.redis_key)
+      return false
+    elseif (cfg.trigger_values or cfg.not_trigger_values) then
+      if (type(cfg.trigger_values) == "table" or type(cfg.not_trigger_values) == "table") then
+        return true
+      end
+      kong.log.err("Error trigger_condition configruation, " .. "path: " .. path .. " redis_key: " .. cfg.redis_key)
+      return falsek
+    end
+  else
+    -- trigger condition is disabled
+    return false
+  end
+end
+
+function xnor(a,b)
+  if a == b then return true else return false end
+end
+
 function plugin:access(config)
   plugin.super.access(self)
 
@@ -119,30 +142,57 @@ function plugin:access(config)
     if debug then
       kong.log.debug("Rate limit redis_key: " .. path .. " -> " .. redis_key)
     end
-
-    local count
-    count, err = rd:incr(redis_key)
-    if type(count) ~= "number" then
-      kong.log.err("Error calling redis incr:" .. tostring(count) .. ", " .. tostring(err))
-    else
-      if count == 1 then
-        rd:expire(redis_key, cfg.window or 1)
-      elseif count > cfg.limit then
-        -- there is a race condition, that if somehow, we failed to call rd:expire(), then the key will stay here forever
-        -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
-        if (count - cfg.limit) % 10 == 0 then
-          local ttl = rd:ttl(redis_key)
-          if ttl < 0 then
-            kong.log.err("Redis key ttl is less than 0, will delete it: " .. redis_key)
-            rd:del(redis_key)
+    local validVerification = true
+    -- the additonal part for trigger condition
+    if triggerConditionValid(cfg, path) then
+      local triggerSide = cfg.trigger_values ~= nil or cfg.not_trigger_values == nil -- negation logic flipping for not_trigger_values
+      if triggerSide then
+       validVerification = false
+      end
+      local triggerValues = cfg.trigger_values or cfg.not_trigger_values
+      local condResolved = false
+      for _ , triggerValue in pairs(triggerValues) do
+        local resolvedConditionVar = substituteVariables( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
+        if not condResolved then
+          if (resolvedConditionVar == triggerValue) then
+            if triggerSide then -- case 'trigger_values'
+              -- Enable the rate limit trigger for either one match 'trigger_values'
+              validVerification = true
+            else
+              -- Disable the rate limit trigger for either one match 'not_trigger_values'
+              validVerification = false
+            end
+            condResolved = true
           end
         end
-        -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
-        kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
       end
     end
-  end
+    if validVerification then
+      -- rate limitation counting logic
+      local count
+      count, err = rd:incr(redis_key)
+      if type(count) ~= "number" then
+        kong.log.err("Error calling redis incr:" .. tostring(count) .. ", " .. tostring(err))
+      else
+        if count == 1 then
+          rd:expire(redis_key, cfg.window or 1)
+        elseif count > cfg.limit then
+          -- there is a race condition, that if somehow, we failed to call rd:expire(), then the key will stay here forever
+          -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
+          if (count - cfg.limit) % 10 == 0 then
+            local ttl = rd:ttl(redis_key)
+            if ttl < 0 then
+              kong.log.err("Redis key ttl is less than 0, will delete it: " .. redis_key)
+              rd:del(redis_key)
+            end
+          end
+          -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
+          kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+        end
+      end
 
+    end
+  end
 end
 
 -- set the plugin priority, which determines plugin execution order

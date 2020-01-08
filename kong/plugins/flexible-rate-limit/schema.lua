@@ -38,6 +38,9 @@ return {
                   { redis_key = { type = "string", required = true } },
                   { window = { type = "number", default = 1 } },
                   { limit = { type = "number", required = true } },
+                  { trigger_condition = { type = "string" } },
+                  { trigger_values = { type = "array" , elements = { type = "string" } } },
+                  { not_trigger_values = { type = "array" , elements = { type = "string" } } }
                 }
               }
             }              
