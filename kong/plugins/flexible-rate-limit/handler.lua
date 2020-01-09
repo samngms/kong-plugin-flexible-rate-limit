@@ -19,6 +19,16 @@ function plugin:new()
   plugin.super.new(self, plugin_name)
 end
 
+
+function tableContains(table, element)
+  for _, value in pairs(table) do
+    if value == element then
+      return true
+    end
+  end
+  return false
+end
+
 function substituteVariables(template, url, method, ip, request) 
   local output = template:gsub("%$%{[^%}]+%}", function(key) 
       local key2 = key:sub(3, -2)
@@ -71,25 +81,6 @@ function getCfgList(config, request, path)
   end
 
   return nil
-end
-
-function triggerConditionValid(cfg, path) -- condition config validation
-  if cfg.trigger_condition then
-    -- trigger condition validation
-    if cfg.trigger_values and cfg.not_trigger_values then
-      kong.log.err("Error trigger_condition configruation, " .. "path: " .. path .. " redis_key: " .. cfg.redis_key)
-      return false
-    elseif (cfg.trigger_values or cfg.not_trigger_values) then
-      if (type(cfg.trigger_values) == "table" or type(cfg.not_trigger_values) == "table") then
-        return true
-      end
-      kong.log.err("Error trigger_condition configruation, " .. "path: " .. path .. " redis_key: " .. cfg.redis_key)
-      return falsek
-    end
-  else
-    -- trigger condition is disabled
-    return false
-  end
 end
 
 function xnor(a,b)
@@ -188,32 +179,23 @@ function plugin:access(config)
     if debug then
       kong.log.debug("Rate limit redis_key: " .. path .. " -> " .. redis_key)
     end
-    local validVerification = true
+    local trigger = true
     -- the additonal part for trigger condition
-    if triggerConditionValid(cfg, path) then
-      local triggerSide = cfg.trigger_values ~= nil or cfg.not_trigger_values == nil -- negation logic flipping for not_trigger_values
-      if triggerSide then
-       validVerification = false
+    if cfg.trigger_condition then
+      local trigger_condition = substituteVariables( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
+      if debug then
+        kong.log.debug("Trigger condition: " .. trigger_condition)
       end
-      local triggerValues = cfg.trigger_values or cfg.not_trigger_values
-      local condResolved = false
-      for _ , triggerValue in pairs(triggerValues) do
-        local resolvedConditionVar = substituteVariables( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
-        if not condResolved then
-          if (resolvedConditionVar == triggerValue) then
-            if triggerSide then -- case 'trigger_values'
-              -- Enable the rate limit trigger for either one match 'trigger_values'
-              validVerification = true
-            else
-              -- Disable the rate limit trigger for either one match 'not_trigger_values'
-              validVerification = false
-            end
-            condResolved = true
-          end
+      if nil ~= cfg.trigger_values and type(cfg.trigger_values) == "table" then
+        if nil ~= cfg.not_trigger_values and type(cfg.not_trigger_values) == "table" then
+          kong.log.warn("Use of trigger_condition should have either trigger_values or not_trigger_values, but both are defined for: " .. cfg.redis_key)
         end
+        trigger = tableContains(cfg.trigger_values, trigger_condition)
+      elseif nil ~= cfg.not_trigger_values and type(cfg.not_trigger_values) == "table" then
+        trigger = (not tableContains(cfg.not_trigger_values, trigger_condition))
       end
     end
-    if validVerification then
+    if trigger then
       -- rate limitation counting logic
       local count
       count, err = rd:incr(redis_key)
