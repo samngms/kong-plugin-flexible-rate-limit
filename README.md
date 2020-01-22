@@ -28,7 +28,7 @@ Per each url path and for each HTTP method, you can specify an array with the fo
 
 `redis_key` and `trigger_condition` are strings supporting the following variable substitutions
 - `${method}`: the request method
-- `${url}`: the url path
+- `${url}`: the url path, does NOT include querystring
 - `${ip}`: the result of `kong.client.get_forwarded_ip()`
 - `${header.xxx}`: the result of `kong.request.get_header(xxx)`, note `-` is supported
 - `${query.xxx}`: the result of `kong.request.get_query()[xxx]`
