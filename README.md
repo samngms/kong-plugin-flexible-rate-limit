@@ -20,7 +20,7 @@ Per each url path and for each HTTP method, you can specify an array with the fo
 | Field name | Field type | Description |
 |-----------|:-----------------|:------------|
 | `redis_key` | `string` | Detail description see below |
-| `window` | `number` | the window of the rate limit in seconds |
+| `window` | `number` | the window of the rate limit in milliseconds (for backward compatibility, if the value is less-than-or-equals to 10, it is considered as seconds, this dirty trick will be removed in the future) |
 | `limit` | `number` | the number of max request per window |
 | `trigger_condition` | `number` | the variable for verifying the trigger of that rate limit rule |
 | `trigger_values` | `number` | the matching value of `trigger_condition` for trigger that rate limit rule |

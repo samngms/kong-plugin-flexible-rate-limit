@@ -28,7 +28,7 @@ for _, strategy in helpers.each_strategy() do
             ["*"] = {
               [1] = {
                 redis_key = "hello:${query.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 5
               }
             }
@@ -37,17 +37,17 @@ for _, strategy in helpers.each_strategy() do
             ["*"] = {
               [1] = {
                 redis_key = "1s:${body.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 5,
               },
               [2] = {
                 redis_key = "2s:${post.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 5
               },
               [3] = {
                 redis_key = "3s:${post.api_key}",
-                window = 3,
+                window = 3000,
                 limit = 8
               },
             }
@@ -56,7 +56,7 @@ for _, strategy in helpers.each_strategy() do
             ["*"] = {
               [1] = {
                 redis_key = "put:${header.My-IP}",
-                window = 1,
+                window = 1000,
                 limit = 5
               }
             }

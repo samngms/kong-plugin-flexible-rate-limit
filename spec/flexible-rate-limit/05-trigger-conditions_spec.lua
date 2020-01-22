@@ -28,7 +28,7 @@ for _, strategy in helpers.each_strategy() do
             ["*"] = {
               [1] = {
                 redis_key = "1s:${header.My-IP}",
-                window = 1,
+                window = 1000,
                 limit = 10,
                 trigger_condition = "${header.My-IP}",
                 trigger_values = {
@@ -38,7 +38,7 @@ for _, strategy in helpers.each_strategy() do
               },
               [2] = {
                 redis_key = "2s:${header.My-IP}",
-                window = 1,
+                window = 1000,
                 limit = 5,
                 trigger_condition = "${header.My-IP}",
                 not_trigger_values = {
@@ -49,7 +49,7 @@ for _, strategy in helpers.each_strategy() do
               },
               [3] = {
                 redis_key = "3s:${post.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 15
               },
             }

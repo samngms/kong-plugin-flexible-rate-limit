@@ -29,14 +29,14 @@ for _, strategy in helpers.each_strategy() do
             ["GET"] = {
               [1] = {
                 redis_key = "hello:${body.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 5
               }
             },
             ["*"] = {
               [1] = {
                 redis_key = "hello:${body.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 1
               }
             }
@@ -46,7 +46,7 @@ for _, strategy in helpers.each_strategy() do
             ["POST"] = {
               [1] = {
                 redis_key = "hello:${body.api_key}",
-                window = 1,
+                window = 1000,
                 limit = 1
               }
             }

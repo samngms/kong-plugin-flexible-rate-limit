@@ -169,14 +169,17 @@ function plugin:access(config)
         kong.log.err("Error calling redis incr:" .. tostring(count) .. ", " .. tostring(err))
       else
         if count == 1 then
-          rd:expire(redis_key, cfg.window or 1)
+          local w = cfg.window or 1
+          if w <= 10 then w = w * 1000 end
+          rd:pexpire(redis_key, w)
         elseif count > cfg.limit then
-          -- there is a race condition, that if somehow, we failed to call rd:expire(), then the key will stay here forever
+          -- there is a race condition, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
           -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
           if (count - cfg.limit) % 10 == 0 then
-            local ttl = rd:ttl(redis_key)
-            if ttl < 0 then
-              kong.log.err("Redis key ttl is less than 0, will delete it: " .. redis_key)
+            local ttl = rd:pttl(redis_key)
+            -- "-2" means the key does not exist, we only want "-1"
+            if ttl == -1 then
+              kong.log.err("Redis key exists but has no associated expire, will delete it: " .. redis_key)
               rd:del(redis_key)
             end
           end
