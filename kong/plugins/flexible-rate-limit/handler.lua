@@ -94,7 +94,7 @@ function plugin:access(config)
   local err_code = config.err_code or 426
   local err_msg = config.err_msg or "Too Many Requests"
 
-  -- get per url config object
+  -- get per url config object, does not include querystring according to Kong doc
   local path = kong.request.get_path()
 
   if nil ~= path then
