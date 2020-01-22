@@ -26,7 +26,7 @@ build = {
   type = "builtin",
   modules = {
     ["kong.plugins.flexible-rate-limit.handler"]          = "kong/plugins/flexible-rate-limit/handler.lua",
-    ["kong.plugins.flexible-rate-limit.schema"]           = "kong/plugins/flexible-rate-limit/schema.lua"
+    ["kong.plugins.flexible-rate-limit.schema"]           = "kong/plugins/flexible-rate-limit/schema.lua",
     ["kong.plugins.flexible-rate-limit.string_util"]      = "kong/plugins/flexible-rate-limit/string_util.lua"
   }
 }
