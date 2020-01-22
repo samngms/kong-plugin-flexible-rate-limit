@@ -33,6 +33,8 @@ Per each url path and for each HTTP method, you can specify an array with the fo
 - `${header.xxx}`: the result of `kong.request.get_header(xxx)`, note `-` is supported
 - `${query.xxx}`: the result of `kong.request.get_query()[xxx]`
 - `${body.xxx}`: the result of `kong.request.get_body()[xxx]`
+- `${_0.xxx}`: a special function to split `xxx` by `_` and get the first part
+- `${_1.xxx}`: a special function to split `xxx` by `_` and get the second part
 
 # Environment Variables
 
