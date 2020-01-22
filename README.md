@@ -21,7 +21,7 @@ Per each url path and for each HTTP method, you can specify an array with the fo
 |-----------|:-----------------|:------------|
 | `redis_key` | `string` | Detail description see below |
 | `window` | `number` | the window of the rate limit in seconds |
-| `count` | `number` | the number of max request per window |
+| `limit` | `number` | the number of max request per window |
 | `trigger_condition` | `number` | the variable for verifying the trigger of that rate limit rule |
 | `trigger_values` | `number` | the matching value of `trigger_condition` for trigger that rate limit rule |
 | `not_trigger_values` | `number` | the matching value of `not_trigger_values` for NOT trigger that rate limit rule |
@@ -64,21 +64,21 @@ There are two types of paths in the config, `exact_match` and `pattern_match`, w
         {
             "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
             "window": 50,
-            "count": 10,
+            "limit": 10,
             "trigger_condition": "${header.My-Real-IP}",
             "trigger_values": ["192.168.1.101","192.168.1.102"]
         },
         {
             "redis_key": "rate_limit1:${url}:${header.My-Real-IP}",
             "window": 10,
-            "count": 10,
+            "limit": 10,
             "trigger_condition": "${header.My-Real-IP",
             "not_trigger_values": ["192.168.1.101","192.168.1.102"]
         },
         {
             "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
             "window": 900,
-            "count": 100
+            "limit": 100
         }
     ],
     "POST": [
@@ -172,7 +172,7 @@ Accept: */*
 Content-Type: application/json
 Content-Length: 377
 
-{"name":"flexible-rate-limit","config":{{"err_code":429,"redis_host":"localhost","exact_match":{"/path1/path2":{"GET":[{"redis_key":"rate_limit1:${url}:${header.My-Real-IP}","window":10,"count":10},{"redis_key":"rate_limit2:${url}:${header.My-Real-IP}","window":900,"count":100}]}}}}}
+{"name":"flexible-rate-limit","config":{{"err_code":429,"redis_host":"localhost","exact_match":{"/path1/path2":{"GET":[{"redis_key":"rate_limit1:${url}:${header.My-Real-IP}","window":10,"limit":10},{"redis_key":"rate_limit2:${url}:${header.My-Real-IP}","window":900,"limit":100}]}}}}}
 ```
 
 
