@@ -10,6 +10,7 @@ local plugin = require("kong.plugins.base_plugin"):extend()
 
 local redis = require("resty.redis")
 local socket = require("socket")
+local util = require("kong.plugins.flexible-rate-limit.string_util")
 
 local sock_err_count = 0
 local sock_err_time = 0
@@ -19,7 +20,6 @@ function plugin:new()
   plugin.super.new(self, plugin_name)
 end
 
-
 function tableContains(table, element)
   for _, value in pairs(table) do
     if value == element then
@@ -27,40 +27,6 @@ function tableContains(table, element)
     end
   end
   return false
-end
-
-function substituteVariables(template, url, method, ip, request) 
-  local output = template:gsub("%$%{[^%}]+%}", function(key) 
-      local key2 = key:sub(3, -2)
-      if key2 == "url" then
-        return url
-      elseif key2 == "ip" then
-        return ip
-      elseif key2 == "method" then
-        return method
-      else
-        local idx = key2:find(".", 1, true)
-        if not idx then
-            return key
-        end
-        local prefix = key2:sub(1, idx-1)
-        local suffix = key2:sub(idx+1)
-        if prefix == "header" then
-            return request.get_header(suffix) or key
-        elseif prefix == "body" then
-            local body = request.get_body()
-            if nil == body then return key end
-            return body[suffix] or key
-        elseif prefix == "query" then
-            local query = request.get_query()
-            if nil == query then return key end
-            return query[suffix] or key
-        else
-            return key
-        end
-      end
-  end)
-  return output
 end
 
 function getCfgList(config, request, path) 
@@ -175,14 +141,14 @@ function plugin:access(config)
   end
 
   for i, cfg in ipairs(cfgList) do
-    local redis_key = substituteVariables(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
+    local redis_key = util.interpolate(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
     if debug then
       kong.log.debug("Rate limit redis_key: " .. path .. " -> " .. redis_key)
     end
     local trigger = true
     -- the additonal part for trigger condition
     if cfg.trigger_condition then
-      local trigger_condition = substituteVariables( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
+      local trigger_condition = util.interpolate( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
       if debug then
         kong.log.debug("Trigger condition: " .. trigger_condition)
       end
