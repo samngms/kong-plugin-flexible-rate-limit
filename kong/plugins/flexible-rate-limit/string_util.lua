@@ -1,3 +1,5 @@
+local fourLetters = {usdt = 1, usdc = 1, tusd = 1, dash = 1, link = 1, atom = 1, hedg = 1, iota = 1, doge = 1, qtum = 1, algo = 1, nano = 1}
+
 local function resolve(key, url, method, ip, request) 
   if key == "url" then
     return url
@@ -13,16 +15,24 @@ local function resolve(key, url, method, ip, request)
     local prefix = key:sub(1, idx-1)
     local suffix = key:sub(idx+1)
     if prefix == "_0" or prefix == "_1" then
-      local tmp = resolve(suffix, url, method, ip, request) 
-      local idx2 = tmp:find("_", 1, true)
-      if not idx2 then
-        return tmp
-      else
-        if prefix == "_0" then
-          return tmp:sub(1, idx2-1)
-        else 
-          return tmp:sub(idx2+1)
+      local tmp = resolve(suffix, url, method, ip, request):lower()
+      if tmp:len() > 4 then
+        local p1 = tmp:sub(1, 4)
+        if fourLetters[p1] == 1 then
+          if prefix == "_0" then 
+            return p1 
+          else
+            return tmp:sub(5)
+          end
+        else
+          if prefix == "_0" then
+            return tmp:sub(1, 3)
+          else
+            return tmp:sub(4)
+          end
         end
+      else
+        return tmp
       end
     elseif prefix == "header" then
         return request.get_header(suffix) or key
