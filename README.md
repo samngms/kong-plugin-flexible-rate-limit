@@ -1,5 +1,7 @@
 # Flexible Rate Limit for Kong API Gateway
 
+[![Build Status](https://travis-ci.org/samngms/kong-plugin-flexible-rate-limit.svg?branch=master)](https://travis-ci.org/samngms/kong-plugin-flexible-rate-limit) &nbsp; [![LuaRocks](https://img.shields.io/badge/-LuaRocks-blue)](https://luarocks.org/modules/samngms/kong-plugin-flexible-rate-limit)
+
 The following are global config parameters
 
 | Parameter | Parameter Type | Description |
