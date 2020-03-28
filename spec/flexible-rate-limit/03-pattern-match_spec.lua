@@ -20,7 +20,8 @@ for _, strategy in helpers.each_strategy() do
     lazy_setup(function()
       local bp, route1
       local myconfig = {
-        redis_host = "127.0.0.1",
+        redis_host = helpers.redis_host,
+        redis_port = 6379,
         err_code = 488,
         pattern_match = {
           ["^/ge%w$"] = {
