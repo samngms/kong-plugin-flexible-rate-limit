@@ -11,7 +11,7 @@ The following are global config parameters
 | `redis_auth` | `string` | the redis password, Redis authentication is used only if defined |
 | `redis_ssl` | `boolean` | if true, use SSL to connect to redis (defaults to false) |
 | `redis_backoff_count` | `number` | if the plugin can't connect to Redis (probably Redis is down) for too many times, the plugin will be backoff for a period of time, this is the number of counts to activate the backoff, default value is 10 |
-| `redis_backoff_period` | `number` | if the plugin can't connect to Redis (probably Redis is down) for too many times, the plugin will be backoff for a period of time, this is the time period of the backoff, value in seconds, default value is 300 (5min) |
+| `redis_backoff_period` | `number` | if the plugin can't connect to Redis (probably Redis is down) for too many times, the plugin will be backoff for a period of time, this is the time period of the backoff, value in millisecond, default value is 300,000 (5min) |
 | `debug` | `boolean` | if true, will return rejection reason in HTTP response body |
 | `timeout` | `number` | redis/socket operation timeout, value in millisecond |
 | `err_code` | `number` | if set, rejected requests will be in this code, otherwise, rejected requets will be HTTP 426 |

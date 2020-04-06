@@ -68,7 +68,7 @@ function plugin:access(config)
   end
 
   local redis_backoff_count = config.redis_backoff_count or 10
-  local redis_backoff_period = (config.redis_backoff_period or 300) * 1000
+  local redis_backoff_period = (config.redis_backoff_period or 300000) / 1000
   if sock_err_count >= redis_backoff_count then
     if (sock_err_time + redis_backoff_period) > socket.gettime() then
       if debug then
@@ -106,8 +106,8 @@ function plugin:access(config)
       redis_ssl = true
     end
   end
-  local pool_size = config.pool_size or 30
-  local backlog = config.backlog or 100
+  local pool_size = config.pool_size or 50
+  local backlog = config.backlog or 50
   local timeout = config.timeout
   if nil ~= timeout and timeout > 0 then 
     rd:set_timeout(timeout)
@@ -129,6 +129,7 @@ function plugin:access(config)
     local session, err = sock:sslhandshake(nil, redis_host, false)
     if nil ~= err then
       kong.log.err("Error sslhandshake: " .. tostring(err))
+      rd:close()
       return
     end
   end
@@ -136,6 +137,7 @@ function plugin:access(config)
     ok, err = rd:auth(redis_auth)
     if not ok then 
       kong.log.err("Error authenticating to Redis: " .. tostring(err))
+      rd:close()
       return
     end
   end
@@ -184,12 +186,16 @@ function plugin:access(config)
             end
           end
           -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
+          rd:close()
           kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+          return
         end
       end
-
     end
   end
+
+  -- remember to cloes redis after use
+  rd:close()
 end
 
 -- set the plugin priority, which determines plugin execution order
