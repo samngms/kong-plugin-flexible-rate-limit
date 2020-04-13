@@ -177,18 +177,32 @@ function plugin:access(config)
         elseif count > cfg.limit then
           -- there is a race condition, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
           -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
-          if (count - cfg.limit) % 10 == 0 then
+          local x = count - cfg.limit
+          local invalid_key = false
+          -- we will check when x = 1, 2, 3, 4, 10, 20, 30, ....
+          if (x <= 4) or ((x % 10) == 0) then
             local ttl = rd:pttl(redis_key)
-            -- "-2" means the key does not exist, we only want "-1"
+            -- "-1" means no ttl, if we see this, we need to delete the key
+            -- "-2" means the key does not exist, this may due to 
+            --    (a) the key exists when we call incr(), but just expired right before we call pttl()
+            --    (b) the key has no ttl, and has just been deleted by anther thread
+            --    for (a), it is actually a very marginal case, maybe a few ms delay only
+            --    for (b), we shouldn't block it
+            --    and remember we don't always check the ttl, so to be safe, we will let it pass-thru if ttl = -2
             if ttl == -1 then
               kong.log.err("Redis key exists but has no associated expire, will delete it: " .. redis_key)
               rd:del(redis_key)
+              invalid_key = true
+            elseif ttl == -2 then
+              invalid_key = true
             end
           end
-          -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
-          rd:close()
-          kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
-          return
+          if not invalid_key then
+            -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
+            rd:close()
+            kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+            return
+          end
         end
       end
     end
