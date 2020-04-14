@@ -17,6 +17,7 @@ local sock_err_time = 0
 
 -- constructor
 function plugin:new()
+  plugin.redis_script_hash = nil
   plugin.super.new(self, plugin_name)
 end
 
@@ -142,6 +143,21 @@ function plugin:access(config)
     end
   end
 
+  if nil == plugin.redis_script_hash then
+    local hash, err = rd:script("load", [[local count = redis.call("incr",KEYS[1])
+      if tonumber(count) == 1 then
+        redis.call("pexpire",KEYS[1],KEYS[2])
+      end
+      return count]])
+    if not hash then
+      kong.log.err("Error redis.script_load(): " .. tostring(err))
+      rd:close()
+      return
+    end
+    kong.log.err("Redis script loaded successfully: " .. hash)
+    plugin.redis_script_hash = hash
+  end
+
   for i, cfg in ipairs(cfgList) do
     local redis_key = util.interpolate(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
     if debug then
@@ -165,21 +181,22 @@ function plugin:access(config)
     end
     if trigger then
       -- rate limitation counting logic
+      local w = cfg.window or 1000
+      if w <= 10 then w = w * 1000 end
       local count
-      count, err = rd:incr(redis_key)
+      count, err = rd:evalsha(plugin.redis_script_hash, 2, redis_key, w)
       if not count then
-        kong.log.err("Error calling redis incr:" .. tostring(count) .. ", " .. tostring(err))
+        kong.log.err("Error calling redis.evalsha(): result: " .. tostring(count) .. ", error: " .. tostring(err))
+        if string.match(tostring(err), "^NOSCRIPT") then
+          -- script will be re-upload next time
+          plugin.redis_script_hash = nil
+          -- no script, no need to continue
+          rd:close()
+          return
+        end
       else
-        if count == 1 then
-          local w = cfg.window or 1000
-          if w <= 10 then w = w * 1000 end
-          local ans
-          ans, err = rd:pexpire(redis_key, w)
-          if not ans then
-            kong.log.err("Error calling redis pexpire:" .. tostring(ans) .. ", " .. tostring(err))
-          end
-        elseif count > cfg.limit then
-          -- there is a race condition, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
+        if count > cfg.limit then
+          -- there is a race condition in the old implementation, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
           -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
           local x = count - cfg.limit
           local invalid_key = false
@@ -187,12 +204,6 @@ function plugin:access(config)
           if (x <= 4) or ((x % 10) == 0) then
             local ttl = rd:pttl(redis_key)
             -- "-1" means no ttl, if we see this, we need to delete the key
-            -- "-2" means the key does not exist, this may due to 
-            --    (a) the key exists when we call incr(), but just expired right before we call pttl()
-            --    (b) the key has no ttl, and has just been deleted by anther thread
-            --    for (a), it is actually a very marginal case, maybe a few ms delay only
-            --    for (b), we shouldn't block it
-            --    and remember we don't always check the ttl, so to be safe, we will let it pass-thru if ttl = -2
             if ttl == -1 then
               kong.log.err("Redis key exists but has no associated expire, will delete it: " .. redis_key)
               local ans
@@ -200,8 +211,6 @@ function plugin:access(config)
               if nil == ans then
                 kong.log.err("Error deleting Redis key: " .. redis_key .. ", reason: " .. tostring(err))
               end
-              invalid_key = true
-            elseif ttl == -2 then
               invalid_key = true
             end
           end
