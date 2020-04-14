@@ -42,12 +42,12 @@ for _, strategy in helpers.each_strategy() do
                 limit = 5,
               },
               [2] = {
-                redis_key = "2s:${post.api_key}",
+                redis_key = "1s_x:${body.api_key}",
                 window = 1000,
                 limit = 5
               },
               [3] = {
-                redis_key = "3s:${post.api_key}",
+                redis_key = "3s:${body.api_key}",
                 window = 3000,
                 limit = 8
               },

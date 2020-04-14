@@ -207,7 +207,7 @@ function plugin:access(config)
           end
           if not invalid_key then
             -- remember to cloes redis after use
-            rd:close()
+            rd:set_keepalive()
             -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
             kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
             return
@@ -218,7 +218,7 @@ function plugin:access(config)
   end
 
   -- remember to cloes redis after use
-  rd:close()
+  rd:set_keepalive()
 end
 
 -- set the plugin priority, which determines plugin execution order

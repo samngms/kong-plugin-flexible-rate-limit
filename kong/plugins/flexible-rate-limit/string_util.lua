@@ -50,13 +50,35 @@ local function resolve(key, url, method, ip, request)
   end
 end
 
+-- we don't use gsub because it causes the "yield" problem along if I use redis:set_keepalive()
+-- coroutine: runtime error: attempt to yield across C-call boundary
 local function interpolate(template, url, method, ip, request) 
-    local output = template:gsub("%$%{[^%}]+%}", function(key) 
-        local key2 = key:sub(3, -2)
-        return resolve(key2, url, method, ip, request)
-    end)
-    return output
+  local start = 1
+  local output = ""
+  while(true) do
+    local idx = string.find(template, "${", start, true)
+    local _break = true
+    if idx then
+      local _end = string.find(template, "}", idx+2, true)
+      if _end then
+        _break = false
+        output = output .. string.sub(template, start, idx-1)
+        local key = string.sub(template, idx+2, _end-1)
+        output = output .. resolve(key, url, method, ip, request)
+        start = _end + 1
+      end
+    end
+    if _break then 
+      if start == 1 then
+        output = start
+      else
+        output = output .. string.sub(template, start)
+      end
+      break 
+    end
   end
+  return output
+end
 
 
 return {
