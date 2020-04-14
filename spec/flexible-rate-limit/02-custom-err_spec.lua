@@ -98,7 +98,7 @@ for _, strategy in helpers.each_strategy() do
 
     describe("testing ", function()
 
-      it("10 requests in 1 batch", function()
+      it("custom error code", function()
         local r = assert(client:send {
           method = "GET",
           path = "/get",

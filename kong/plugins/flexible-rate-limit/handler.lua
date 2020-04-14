@@ -167,13 +167,17 @@ function plugin:access(config)
       -- rate limitation counting logic
       local count
       count, err = rd:incr(redis_key)
-      if type(count) ~= "number" then
+      if not count then
         kong.log.err("Error calling redis incr:" .. tostring(count) .. ", " .. tostring(err))
       else
         if count == 1 then
-          local w = cfg.window or 1
+          local w = cfg.window or 1000
           if w <= 10 then w = w * 1000 end
-          rd:pexpire(redis_key, w)
+          local ans
+          ans, err = rd:pexpire(redis_key, w)
+          if not ans then
+            kong.log.err("Error calling redis pexpire:" .. tostring(ans) .. ", " .. tostring(err))
+          end
         elseif count > cfg.limit then
           -- there is a race condition, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
           -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
@@ -191,15 +195,20 @@ function plugin:access(config)
             --    and remember we don't always check the ttl, so to be safe, we will let it pass-thru if ttl = -2
             if ttl == -1 then
               kong.log.err("Redis key exists but has no associated expire, will delete it: " .. redis_key)
-              rd:del(redis_key)
+              local ans
+              ans, err = rd:del(redis_key)
+              if nil == ans then
+                kong.log.err("Error deleting Redis key: " .. redis_key .. ", reason: " .. tostring(err))
+              end
               invalid_key = true
             elseif ttl == -2 then
               invalid_key = true
             end
           end
           if not invalid_key then
-            -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
+            -- remember to cloes redis after use
             rd:close()
+            -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
             kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
             return
           end

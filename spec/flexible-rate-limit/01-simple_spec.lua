@@ -186,7 +186,6 @@ for _, strategy in helpers.each_strategy() do
       it("test multiple rate limits", function()
         local api_key = "1234"
         for i = 1, 10, 1 do
-          if 0 == (i % 2) then ip = "88.77.66.55" end
           local r = assert(client:send {
             method = "POST",
             path = "/post",
