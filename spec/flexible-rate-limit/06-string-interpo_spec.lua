@@ -48,4 +48,47 @@ describe("Testing string interpolation", function()
       assert.are.equal(s, "abc:atomwater:atom:water")
     end)
 
+    it("test split function 4", function()       
+      local req = MockRequest:new(nil, {}, {name = "hello_world"}, {})
+      local s = util.interpolate("abc:${query.name}:${_0.query.name}:${_1.query.name}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:hello_world:hello:world")
+    end)
+
+    it("test split function 5", function()       
+      -- can handle more than one "_", and case sensitive
+      local req = MockRequest:new(nil, {}, {name = "Foo__Bar_"}, {})
+      local s = util.interpolate("abc:${query.name}:${_0.query.name}:${_1.query.name}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:Foo__Bar_:Foo:_Bar_")
+    end)
+
+    it("test split function 6", function()       
+      local req = MockRequest:new(nil, {}, {name = "_Apple"}, {})
+      local s = util.interpolate("abc:${query.name}:${_0.query.name}:${_1.query.name}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:_Apple::Apple")
+    end)
+
+    it("test split function 7", function()       
+      local req = MockRequest:new(nil, {}, {name = "Orange_"}, {})
+      local s = util.interpolate("abc:${query.name}:${_0.query.name}:${_1.query.name}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:Orange_:Orange:")
+    end)
+
+    it("test split function 8", function()       
+      local req = MockRequest:new(nil, {}, {}, {name = {first = "John", last = "Doe"}, age = 20})
+      local s = util.interpolate("abc:${body.name.first}:${body.name.last}:${body.age}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:John:Doe:20")
+    end)
+
+    it("test split function 9", function()       
+      local req = MockRequest:new(nil, {}, {}, {name = {first = {"John", "Peter"}}})
+      local s = util.interpolate("abc:${body.name.first}:${body.name.last}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:[\"John\",\"Peter\"]:body.name.last")
+    end)
+
+    it("test split function 10", function()       
+      local req = MockRequest:new(nil, {}, {}, {name = {first = {"John", "Peter"}}})
+      local s = util.interpolate("abc:${body.name}", "/path/file", "POST", "12.34.5.6", req)
+      assert.are.equal(s, "abc:{\"first\":[\"John\",\"Peter\"]}")
+    end)
+
   end)
