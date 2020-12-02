@@ -1,5 +1,11 @@
 local typedefs = require "kong.db.schema.typedefs"
 
+local GQL_OPERATIONS = {
+  "query",
+  "mutation",
+  "subscription"
+}
+
 return {
   name = "flexible-rate-limit",
   fields = {
@@ -19,6 +25,7 @@ return {
         { pool_size = { type = "number" } },
         { backlog = { type = "number" } },
         { timeout = { type = "number" } },
+        { graphql_endpoints = { type = "array", elements = { type = "string" } } },
         { exact_match = {
           type = "map",
           -- the key is the path of the url
@@ -74,6 +81,34 @@ return {
                 }
               }
             }              
+          }
+        }},
+        { graphql_match = {
+          type = "map",
+          -- first key is the GraphQL root field
+          keys = {
+            type = "string"
+          },
+          values = {
+            type = "map",
+            -- second key is the GraphQL operation name
+            --one_of = GQL_OPERATIONS,
+            keys = {
+              type = "string"
+            },
+            values = {
+              type = "array",
+              elements = {
+                type = "record",
+                fields = {
+                  { err_code = { type = "number" } },
+                  { err_msg = { type = "string" } },
+                  { redis_key = { type = "string", required = true } },
+                  { window = { type = "number", default = 1 } },
+                  { limit = { type = "number", required = true } },
+                }
+              }
+            }
           }
         }}
       }
