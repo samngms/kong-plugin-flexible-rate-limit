@@ -93,7 +93,7 @@ return {
             type = "map",
             -- second key is the GraphQL operation name
             keys = {
-              type = "string"
+              type = "string",
               one_of = GQL_OPERATIONS,
             },
             values = {
