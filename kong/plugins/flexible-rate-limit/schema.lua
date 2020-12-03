@@ -1,6 +1,6 @@
 local typedefs = require "kong.db.schema.typedefs"
 
-local GQL_OPERATIONS = {
+local GQL_ROOT_TYPES = {
   "query",
   "mutation",
   "subscription"
@@ -91,10 +91,10 @@ return {
           },
           values = {
             type = "map",
-            -- second key is the GraphQL operation name
+            -- second key is the GraphQL root type, defaults defined in GQL_ROOT_TYPES
             keys = {
               type = "string",
-              one_of = GQL_OPERATIONS,
+              one_of = GQL_ROOT_TYPES, --seems not to work yet in test code
             },
             values = {
               type = "array",
