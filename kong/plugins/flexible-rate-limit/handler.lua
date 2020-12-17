@@ -53,30 +53,34 @@ function getCfgList(config, request, path)
   local gqlCfg = config.graphql_match and config.graphql_match[path]
   if nil ~= gqlCfg and type(gqlCfg) == "table" then
     local requestBody = request.get_raw_body()
-    local parser = GqlParser:new()
-    local gql
+    local gqlTable
 
     -- according to documentation, a single request body can only
     -- contain queries, mutations or subscriptions but cannot
     -- combine multiple types
     -- this part is also a bit flawed, it will get the first match, then try if it works
-    -- in the next iteration, will try to change to gmatch to account for query batching
+
     if nil ~= requestBody:find("query") then
-      gql = parser:parse(requestBody:match("query.*%{.*}"))
+      gqlTable = requestBody:gmatch("query.*%{.*}")
     elseif nil ~= requestBody:find("mutation") then
-      gql = parser:parse(requestBody:match("mutation.*%{.*}"))  
+      gqlTable = requestBody:gmatch("mutation.*%{.*}")
     elseif nil ~= requestBody:find("subscription") then
-      gql = parser:parse(requestBody:match("subscription.*{.*}"))    
+      gqlTable = requestBody:gmatch("subscription.*%{.*}")   
     end
 
-    --loop to match the first config in the request, in case of multiple queries, mutations
-    if nil ~= gql then
-      for _, gqlType in pairs(gql:listOps()) do
-        for _, gqlName in pairs(gqlType:getRootFields()) do
-          local cfgList = gqlCfg[gqlType["type"]][gqlName["name"]]
-          if nil ~= cfgList then return cfgList end
+    if nil ~= gqlTable then
+      local parser = GqlParser:new()
+      for gqlOperation in gqlTable do
+        local gqlObject = parser:parse(gqlOperation)
+        if nil ~= gqlObject then
+          for _, gqlType in pairs(gqlObject:listOps()) do
+            for _, gqlName in pairs(gqlType:getRootFields()) do
+              local cfgList = gqlCfg[gqlType["type"]][gqlName["name"]]
+              if nil ~= cfgList then return cfgList end
+            end
+          end 
         end
-      end 
+      end
     end
   end
 

@@ -28,9 +28,18 @@ for _, strategy in helpers.each_strategy() do
         graphql_match = {
           ["/post"] = {
             ["query"] = {
-              ["me"] = {
+              ["you"] = {
                 [1] = {
                   redis_key = "me",
+                  window = 1000,
+                  limit = 5
+                }
+              }
+            },
+            ["mutation"] = {
+              ["mutateMe"] = {
+                [1] = {
+                  redis_key = "mutateme",
                   window = 1000,
                   limit = 5
                 }
@@ -99,7 +108,7 @@ for _, strategy in helpers.each_strategy() do
 
     describe("testing ", function()
 
-      it("10 requests in 1 batch", function()
+      it("query 10 requests in 1 batch", function()
         for i = 1, 10, 1 do
           local r = assert(client:send {
             method = "POST",
@@ -108,11 +117,27 @@ for _, strategy in helpers.each_strategy() do
               host = "postman-echo.com",
               ["Content-Type"] = "application/x-www-form-urlencoded"
             },
-            --body = "query { me { name } }"
             body = "query { me { name } } \n query { you { name } }"
-            -- something like this would break the graphql-parser if passed directly into it.
-            -- that's why tried to do pattern match 
-            --body = '{"operationName":null,"variables":{"first":10,"filterBy":{}},"query":"query    ($first: Int, $last: Int, $after: String, $before: String, $filterBy: PayoutFilters) {\n  payouts(first: $first, last: $last, after: $after, before: $before, filterBy: $filterBy) {\n    nodes {\n      id\n      status\n      currency\n      amount\n      amountInUsd\n      fee\n      feeInUsd\n      description\n      result\n      merchantId\n      merchantName\n      createdAt\n      updatedAt\n      payoutAccount {\n        id\n        status\n        accountType\n        currency\n        countryCode\n        accountHolder\n        businessAddress\n        iban\n        address\n        __typename\n      }\n      __typename\n    }\n    pageInfo {\n      startCursor\n      endCursor\n      hasNextPage\n      hasPreviousPage\n      __typename\n    }\n    __typename\n  }\n}\n"}'
+          })
+          if i <= 5 then
+            assert.response(r).has.status(200)
+          else
+            assert.response(r).has.status(488)
+          end
+        end
+        socket.sleep(1)
+      end)
+
+      it("mutation 10 requests in 1 batch", function()
+        for i = 1, 10, 1 do
+          local r = assert(client:send {
+            method = "POST",
+            path = "/post",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            body = 'mutation { mutateMe(arg: 123) { return fields}}'
           })
           if i <= 5 then
             assert.response(r).has.status(200)
