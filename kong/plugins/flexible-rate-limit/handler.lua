@@ -12,6 +12,9 @@ local redis = require("resty.redis")
 local socket = require("socket")
 local util = require("kong.plugins.flexible-rate-limit.string_util")
 
+-- load graphql-parser
+local GqlParser = require("graphql-parser")
+
 local sock_err_count = 0
 local sock_err_time = 0
 
@@ -44,6 +47,36 @@ function getCfgList(config, request, path)
         local cfgList = urlCfg[request.get_method()] or urlCfg["*"]
         if nil ~= cfgList then return cfgList end
       end
+    end
+  end
+
+  local gqlCfg = config.graphql_match and config.graphql_match[path]
+  if nil ~= gqlCfg and type(gqlCfg) == "table" then
+    local requestBody = request.get_raw_body()
+    local parser = GqlParser:new()
+    local gql
+
+    -- according to documentation, a single request body can only
+    -- contain queries, mutations or subscriptions but cannot
+    -- combine multiple types
+    -- this part is also a bit flawed, it will get the first match, then try if it works
+    -- in the next iteration, will try to change to gmatch to account for query batching
+    if nil ~= requestBody:find("query") then
+      gql = parser:parse(requestBody:match("query.*%{.*}"))
+    elseif nil ~= requestBody:find("mutation") then
+      gql = parser:parse(requestBody:match("mutation.*%{.*}"))  
+    elseif nil ~= requestBody:find("subscription") then
+      gql = parser:parse(requestBody:match("subscription.*{.*}"))    
+    end
+
+    --loop to match the first config in the request, in case of multiple queries, mutations
+    if nil ~= gql then
+      for _, gqlType in pairs(gql:listOps()) do
+        for _, gqlName in pairs(gqlType:getRootFields()) do
+          local cfgList = gqlCfg[gqlType["type"]][gqlName["name"]]
+          if nil ~= cfgList then return cfgList end
+        end
+      end 
     end
   end
 
