@@ -1,4 +1,6 @@
 local cjson = require("cjson")
+-- load graphql-parser
+local GqlParser = require("graphql-parser")
 
 local fourLetters = {usdt = 1, usdc = 1, tusd = 1, dash = 1, link = 1, atom = 1, hedg = 1, iota = 1, doge = 1, qtum = 1, algo = 1, nano = 1}
 
@@ -98,8 +100,61 @@ local function resolve(key, url, method, ip, request)
         local query = request.get_query()
         if nil == query then return key end
         return query[suffix] or key
+    elseif prefix == "graphql" then
+      local requestBody = request.get_raw_body()
+      local gqlTable
+  
+      -- seems a single GraphQL document can only
+      -- contain queries, mutations or subscriptions but cannot
+      -- combine multiple types
+      -- this part is also a bit flawed, it will get the first match, then try if it works
+
+      -- support ${graphql.type} (to return either query, mutation or subscription)
+      -- our doc may need to explain that if there is query and mutation, it will only select the first type
+  
+      if nil ~= requestBody:find("query") then
+        if suffix == "type" then return "query" end
+        gqlTable = requestBody:gmatch("query.*%{.*}")
+      elseif nil ~= requestBody:find("mutation") then
+        if suffix == "type" then return "mutation" end
+        gqlTable = requestBody:gmatch("mutation.*%{.*}")
+      elseif nil ~= requestBody:find("subscription") then
+        if suffix == "type" then return "subscription" end
+        gqlTable = requestBody:gmatch("subscription.*%{.*}")
+      end
+
+      if nil ~= gqlTable then
+        local parser = GqlParser:new()
+        for gqlOperation in gqlTable do
+          local gqlObject = parser:parse(gqlOperation)
+          -- support ${graphql.depth}
+          if suffix == "depth" then return gqlObject:nestDepth() end
+          if nil ~= gqlObject then
+            -- still keeping this loop, but will only take the first fields, may add further functionality later
+            for _, gqlType in pairs(gqlObject:listOps()) do
+              for _, gqlName in pairs(gqlType:getRootFields()) do
+                -- support  ${graphql.name}, returns the first root name
+                if suffix == "name" then return gqlName["name"] end
+                local rootArguments = gqlName:resolveArgument({})
+                -- again this loop only works for the first argument for now
+                for inputKey, inputTable in pairs(rootArguments) do
+                  -- support ${graphql.arg_name} for the first input name 
+                  if suffix == "arg_name" then return inputKey end 
+                  for inputTableKey, inputTableValue in pairs(inputTable) do
+                    -- support ${graphql.arg_value} which is the first value of the input
+                    if suffix == "arg_value" then return tostring(inputTableValue) end
+                    return key -- just putting this return here for now to save computing resources if no match
+                  end
+                end
+              end
+            end 
+          end
+        end
+      end
+
+      return key
     else
-        return key
+      return key
     end
   end
 end

@@ -55,7 +55,7 @@ function getCfgList(config, request, path)
     local requestBody = request.get_raw_body()
     local gqlTable
 
-    -- according to documentation, a single request body can only
+    -- seems a single GraphQL document can only
     -- contain queries, mutations or subscriptions but cannot
     -- combine multiple types
     -- this part is also a bit flawed, it will get the first match, then try if it works

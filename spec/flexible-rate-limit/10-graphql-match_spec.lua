@@ -30,7 +30,14 @@ for _, strategy in helpers.each_strategy() do
             ["query"] = {
               ["you"] = {
                 [1] = {
-                  redis_key = "me",
+                  redis_key = "you-${graphql.name}-${graphql.type}",
+                  window = 1000,
+                  limit = 5
+                }
+              },
+              ["testinput"] = {
+                [1] = {
+                  redis_key = "test-${graphql.arg_name}-${graphql.arg_value}",
                   window = 1000,
                   limit = 5
                 }
@@ -39,7 +46,7 @@ for _, strategy in helpers.each_strategy() do
             ["mutation"] = {
               ["mutateMe"] = {
                 [1] = {
-                  redis_key = "mutateme",
+                  redis_key = "${graphql.name}-${graphql.type}-${graphql.depth}",
                   window = 1000,
                   limit = 5
                 }
@@ -108,7 +115,7 @@ for _, strategy in helpers.each_strategy() do
 
     describe("testing ", function()
 
-      it("query 10 requests in 1 batch", function()
+      it("query 10 requests in 1 batch, only rate limit second query in same document", function()
         for i = 1, 10, 1 do
           local r = assert(client:send {
             method = "POST",
@@ -118,6 +125,26 @@ for _, strategy in helpers.each_strategy() do
               ["Content-Type"] = "application/x-www-form-urlencoded"
             },
             body = "query { me { name } } \n query { you { name } }"
+          })
+          if i <= 5 then
+            assert.response(r).has.status(200)
+          else
+            assert.response(r).has.status(488)
+          end
+        end
+        socket.sleep(1)
+      end)
+
+      it("query with input args, 10 requests in 1 batch", function()
+        for i = 1, 10, 1 do
+          local r = assert(client:send {
+            method = "POST",
+            path = "/post",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            body = "query { testinput(id: 3) { name } }"
           })
           if i <= 5 then
             assert.response(r).has.status(200)
