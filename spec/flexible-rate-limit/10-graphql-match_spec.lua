@@ -35,9 +35,23 @@ for _, strategy in helpers.each_strategy() do
                   limit = 5
                 }
               },
+              ["me2"] = {
+                [1] = {
+                  redis_key = "meme-${graphql.name}-${graphql.type}",
+                  window = 1000,
+                  limit = 5
+                }
+              },
+              ["me3"] = {
+                [1] = {
+                  redis_key = "mememe-${graphql.name}-${graphql.type}",
+                  window = 1000,
+                  limit = 5
+                }
+              },
               ["testinput"] = {
                 [1] = {
-                  redis_key = "test-${graphql.arg_name}-${graphql.arg_value}",
+                  redis_key = "test-input",
                   window = 1000,
                   limit = 5
                 }
@@ -47,6 +61,22 @@ for _, strategy in helpers.each_strategy() do
               ["mutateMe"] = {
                 [1] = {
                   redis_key = "${graphql.name}-${graphql.type}-${graphql.depth}",
+                  window = 1000,
+                  limit = 5
+                }
+              },
+              ["mutaMe2"] = {
+                [1] = {
+                  redis_key = "mutaMeMe-${graphql.name}-${graphql.type}",
+                  window = 1000,
+                  limit = 5
+                }
+              }
+            },
+            ["subscription"] = {
+              ["subscribeMe"] = {
+                [1] = {
+                  redis_key = "subscribe-Me${graphql.name}-${graphql.type}-${graphql.depth}",
                   window = 1000,
                   limit = 5
                 }
@@ -144,7 +174,7 @@ for _, strategy in helpers.each_strategy() do
               host = "postman-echo.com",
               ["Content-Type"] = "application/x-www-form-urlencoded"
             },
-            body = "query { testinput(id: 3) { name } }"
+            body = "query { testinput(id: 3, meme: 2) { name } }"
           })
           if i <= 5 then
             assert.response(r).has.status(200)
@@ -164,7 +194,7 @@ for _, strategy in helpers.each_strategy() do
               host = "postman-echo.com",
               ["Content-Type"] = "application/x-www-form-urlencoded"
             },
-            body = 'mutation { mutateMe(arg: 123) { return fields}}'
+            body = 'mutation { mutateMe(arg: 123, arg2: 456) { return fields}}'
           })
           if i <= 5 then
             assert.response(r).has.status(200)
@@ -172,6 +202,40 @@ for _, strategy in helpers.each_strategy() do
             assert.response(r).has.status(488)
           end
         end
+        socket.sleep(1)
+      end)
+
+      it("batched, 10 requests in 1 batch", function()
+        for i = 1, 10, 1 do
+          local r = assert(client:send {
+            method = "POST",
+            path = "/post",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            body = 'query { me2 { name } } query { me3 { name } }'
+          })
+          if i <= 5 then
+            assert.response(r).has.status(200)
+          else
+            assert.response(r).has.status(488)
+          end
+        end
+        socket.sleep(1)
+      end)
+
+      it("no match", function()
+          local r = assert(client:send {
+            method = "POST",
+            path = "/post",
+            headers = {
+              host = "postman-echo.com",
+              ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            body = 'no query'
+          })
+          assert.response(r).has.status(200)
         socket.sleep(1)
       end)
 
