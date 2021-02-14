@@ -24,61 +24,68 @@ for _, strategy in helpers.each_strategy() do
         redis_port = 6379,
         debug = true,
         err_code = 488,
-        --graphql_endpoints = { "/graphql", "/admin/graphql" },
+        graphql_request_cost = 200,
         graphql_match = {
           ["/post"] = {
             ["query"] = {
               ["you"] = {
                 [1] = {
-                  redis_key = "you-${graphql.name}-${graphql.type}",
+                  redis_key = "you-${graphql.root}-${graphql.type}",
                   window = 1000,
-                  limit = 5
+                  limit = 5,
+                  cost = 100 
                 }
               },
               ["me2"] = {
                 [1] = {
-                  redis_key = "meme-${graphql.name}-${graphql.type}",
+                  redis_key = "meme-${graphql.root}-${graphql.type}",
                   window = 1000,
-                  limit = 5
+                  limit = 5,
+                  cost = 1
                 }
               },
               ["me3"] = {
                 [1] = {
-                  redis_key = "mememe-${graphql.name}-${graphql.type}",
+                  redis_key = "mememe-${graphql.root}-${graphql.type}",
                   window = 1000,
-                  limit = 5
+                  limit = 5,
+                  cost = 1
                 }
               },
               ["testinput"] = {
                 [1] = {
                   redis_key = "test-input",
                   window = 1000,
-                  limit = 5
+                  limit = 5,
+                  cost = 1
                 }
               }
             },
             ["mutation"] = {
               ["mutateMe"] = {
                 [1] = {
-                  redis_key = "${graphql.name}-${graphql.type}-${graphql.depth}",
+                  redis_key = "${graphql.root}-${graphql.type}-${graphql.root.input.accountID}",
                   window = 1000,
-                  limit = 5
+                  limit = 5,
+                  cost = 1
                 }
               },
               ["mutaMe2"] = {
                 [1] = {
-                  redis_key = "mutaMeMe-${graphql.name}-${graphql.type}",
+                  redis_key = "mutaMeMe-${graphql.root}-${graphql.type}",
                   window = 1000,
-                  limit = 5
+                  limit = 5,
+                  cost = 1
                 }
               }
             },
             ["subscription"] = {
               ["subscribeMe"] = {
                 [1] = {
-                  redis_key = "subscribe-Me${graphql.name}-${graphql.type}-${graphql.depth}",
+                  redis_key = "subscribe-Me${graphql.root}-${graphql.type}-${graphql.depth}",
                   window = 1000,
-                  limit = 5
+                  limit = 5, 
+                  cost = 1
                 }
               }
             }
@@ -165,6 +172,20 @@ for _, strategy in helpers.each_strategy() do
         socket.sleep(1)
       end)
 
+      it("single GraphQL request with too many queries over configured maximum cost ", function()
+        local r = assert(client:send {
+          method = "POST",
+          path = "/post",
+          headers = {
+            host = "postman-echo.com",
+            ["Content-Type"] = "application/x-www-form-urlencoded"
+          },
+          body = "query { you { name } } \n query { you { name } } \n query { you { name } }"
+        })
+        assert.response(r).has.status(488)
+        socket.sleep(1)
+      end)
+
       it("query with input args, 10 requests in 1 batch", function()
         for i = 1, 10, 1 do
           local r = assert(client:send {
@@ -194,7 +215,7 @@ for _, strategy in helpers.each_strategy() do
               host = "postman-echo.com",
               ["Content-Type"] = "application/x-www-form-urlencoded"
             },
-            body = 'mutation { mutateMe(arg: 123, arg2: 456) { return fields}}'
+            body = 'mutation { mutateMe(accountID: 123, arg2: 456) { return fields}}'
           })
           if i <= 5 then
             assert.response(r).has.status(200)

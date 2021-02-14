@@ -64,7 +64,7 @@ function getCfgLists(config, request, path)
     local containsGql = false
 
     -- added this check as it seems GqlParser will throw error for "no query",
-    -- i.e., this checks if there is at least one GQL operation, else will exit
+    -- i.e., this checks if there is at least one GQL operation, else will exit earlier
     for _, gqlOperationType in pairs(gqlOperationTypes) do
       for _ in requestBody:gmatch(gqlOperationType .. ".*%{.*}") do
         containsGql = true
@@ -79,12 +79,12 @@ function getCfgLists(config, request, path)
           for _, gqlRoot in pairs(gqlOperation:getRootFields()) do
             local cfgList = gqlCfg[gqlOperation["type"]][gqlRoot["name"]]
             if nil ~= cfgList then 
-              -- this is not a elegant approach, but it can avoid parsing the GQL twice (another time in interpolation)
+              -- this is not a elegant approach, but it can avoid parsing the GQL twice (avoid another time in interpolation)
               cfgList.gql_type = gqlOperation["type"]
               cfgList.gql_root = gqlRoot["name"] 
               cfgList.gql_depth = gqlTable:nestDepth()
-              -- still need to implement inputs, this will be passed  
-              -- cfgList.gql_input = gqlRoot:resolveArgument({})
+              --cfgList.gql_args = gqlRoot:resolveArgument({})
+              pcall( function() cfgList.gql_root_args = gqlTable:listOps()[1]:getRootFields()[1]:resolveArgument({}) end ) 
               table.insert(cfgListsTable, cfgList) 
             end
           end
@@ -138,8 +138,6 @@ function plugin:access(config)
     end
     return
   end
-
-  -- some kind of function to split request bodies into subparts for graphql here
 
   local rd = redis:new()
   local redis_host = config.redis_host or os.getenv("FLEXIBLE_RATE_LIMIT_REDIS_HOST") or "127.0.0.1"
@@ -209,13 +207,26 @@ function plugin:access(config)
     plugin.redis_script_hash = hash
   end
 
+  local gqlCostCounter = 0
+
   -- Loop through each Config List 
   for _, cfgList in ipairs(cfgLists) do 
     for _, cfg in ipairs(cfgList) do
+
+      gqlCostCounter = gqlCostCounter + cfg.cost
+      -- Check if the GraphQL cost of the single request exceeds the limit configured by schema
+      if gqlCostCounter > config.graphql_request_cost then 
+        if debug then
+          kong.log.debug("Exceeded single request GraphQL cost limit of " .. config.graphql_request_cost)
+        end
+        kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+      end
+
       local redis_key = util.interpolate(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request, cfgList)
       if debug then
         kong.log.debug("Rate limit redis_key: " .. path .. " -> " .. redis_key)
       end
+
       local trigger = true
       -- the additonal part for trigger condition
       if cfg.trigger_condition then

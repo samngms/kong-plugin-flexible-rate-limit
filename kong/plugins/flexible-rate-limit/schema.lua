@@ -27,8 +27,7 @@ return {
         { pool_size = { type = "number" } },
         { backlog = { type = "number" } },
         { timeout = { type = "number" } },
-        --{ graphql_endpoints = { type = "array", elements = { type = "string" } } },
-        -- no longer using graphql endpoints approach, instead use 
+        { graphql_request_cost = { type = "number" } },
         { exact_match = {
           type = "map",
           -- the key is the path of the url
@@ -114,6 +113,7 @@ return {
                     { redis_key = { type = "string", required = true } },
                     { window = { type = "number", default = 1 } },
                     { limit = { type = "number", required = true } },
+                    { cost = { type = "number", required = true } }, -- added this for GraphQL cost calculation 
                   }
                 }
               }

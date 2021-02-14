@@ -101,10 +101,30 @@ local function resolve(key, url, method, ip, request, list)
         if nil == query then return key end
         return query[suffix] or key
     elseif prefix == "graphql" then
-      -- need to change this interpolation function, maybe use gqlConfig as input
       if suffix == "type" then return list.gql_type end
-      if suffix == "name" then return list.gql_root end
+      if suffix == "root" then return list.gql_root end
       if suffix == "depth" then return list.gql_depth end
+
+      local subStrings = {}
+      local subStringCount = 0
+      for subString in key:gmatch("[^%.]+") do
+        table.insert(subStrings, subString)
+        subStringCount = subStringCount + 1
+      end
+
+      -- set up this structure, may be more useful in the future
+      -- for now it can resolve only resolve ROOT inputs, but for any graphql.root.input.variable
+      if subStrings[subStringCount - 1] == "input" and subStrings[subStringCount - 2] == "root" then
+        local configuredInputKey = subStrings[subStringCount]
+        for inputKey, inputKeyTable in pairs(list.gql_root_args) do
+          for _, inputValue in pairs(inputKeyTable) do
+            if inputKey == configuredInputKey then
+              return inputValue
+            end
+          end
+        end
+      end
+
       return key
     else
       return key
