@@ -83,7 +83,7 @@ function getCfgLists(config, request, path)
               cfgList.gql_type = gqlOperation["type"]
               cfgList.gql_root = gqlRoot["name"] 
               cfgList.gql_depth = gqlTable:nestDepth()
-              --cfgList.gql_args = gqlRoot:resolveArgument({})
+              cfgList.cfg_type = "gql"
               pcall( function() cfgList.gql_root_args = gqlTable:listOps()[1]:getRootFields()[1]:resolveArgument({}) end ) 
               table.insert(cfgListsTable, cfgList) 
             end
@@ -213,13 +213,16 @@ function plugin:access(config)
   for _, cfgList in ipairs(cfgLists) do 
     for _, cfg in ipairs(cfgList) do
 
-      gqlCostCounter = gqlCostCounter + cfg.cost
-      -- Check if the GraphQL cost of the single request exceeds the limit configured by schema
-      if gqlCostCounter > config.graphql_request_cost then 
-        if debug then
-          kong.log.debug("Exceeded single request GraphQL cost limit of " .. config.graphql_request_cost)
+      if cfgList.cfg_type == "gql" then
+        gqlCostCounter = gqlCostCounter + cfg.cost
+
+        -- Check if the GraphQL cost of the single request exceeds the limit configured by schema
+        if gqlCostCounter > config.graphql_request_cost then 
+          if debug then
+            kong.log.debug("Exceeded single request GraphQL cost limit of " .. config.graphql_request_cost)
+          end
+          kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
         end
-        kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
       end
 
       local redis_key = util.interpolate(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request, cfgList)
