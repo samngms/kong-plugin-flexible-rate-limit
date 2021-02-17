@@ -14,6 +14,7 @@ local util = require("kong.plugins.flexible-rate-limit.string_util")
 
 -- load graphql-parser
 local GqlParser = require("graphql-parser")
+local cjson = require("cjson")
 
 local sock_err_count = 0
 local sock_err_time = 0
@@ -58,43 +59,36 @@ function getCfgLists(config, request, path)
   -- completely rewrite this sectionn
   local gqlCfg = config.graphql_match and config.graphql_match[path]
   if nil ~= gqlCfg and type(gqlCfg) == "table" then
-    local requestBody = request.get_raw_body()
+    local requestBody = request.get_body()
     local gqlTable
-    local gqlOperationTypes = {"query", "mutation", "subscription"}
-    local containsGql = false
 
-    -- added this check as it seems GqlParser will throw error for "no query",
-    -- i.e., this checks if there is at least one GQL operation, else will exit earlier
-    for _, gqlOperationType in pairs(gqlOperationTypes) do
-      for _ in requestBody:gmatch(gqlOperationType .. ".*%{.*}") do
-        containsGql = true
-      end
-    end
-
-    if containsGql then
-      local parser = GqlParser:new()
-      gqlTable = parser:parse(requestBody)
-      if nil ~= gqlTable then
-        for _, gqlOperation in pairs(gqlTable:listOps()) do
-          for _, gqlRoot in pairs(gqlOperation:getRootFields()) do
-            local cfgList = gqlCfg[gqlOperation["type"]][gqlRoot["name"]]
-            if nil ~= cfgList then 
-              -- this is not a elegant approach, but it can avoid parsing the GQL twice (avoid another time in interpolation)
-              cfgList.gql_type = gqlOperation["type"]
-              cfgList.gql_root = gqlRoot["name"] 
-              cfgList.gql_depth = gqlTable:nestDepth()
-              cfgList.cfg_type = "gql"
-              pcall( function() cfgList.gql_root_args = gqlTable:listOps()[1]:getRootFields()[1]:resolveArgument({}) end ) 
-              table.insert(cfgListsTable, cfgList) 
+    --if containsGql then
+    local parser = GqlParser:new()
+    pcall(function() gqlTable = parser:parse(requestBody["query"]) end)
+    if nil ~= gqlTable then
+      for _, gqlOperation in pairs(gqlTable:listOps()) do
+        for _, gqlRoot in pairs(gqlOperation:getRootFields()) do
+          local cfgList = gqlCfg[gqlOperation["type"]][gqlRoot["name"]]
+          if nil ~= cfgList then 
+            -- this is not a elegant approach, but it can avoid parsing the GQL twice (avoid another time in interpolation)
+            cfgList.gql_type = gqlOperation["type"]
+            cfgList.gql_root = gqlRoot["name"] 
+            cfgList.gql_depth = gqlTable:nestDepth()
+            cfgList.cfg_type = "gql"
+            if nil ~= requestBody["variables"] then
+               
+              --kong.log.debug(type(cjson.decode(requestBody["variables"])))
+              pcall( function() cfgList.gql_root_args = gqlTable:listOps()[1]:getRootFields()[1]:resolveArgument(cjson.encode(requestBody["variables"])) end ) 
             end
+            table.insert(cfgListsTable, cfgList) 
           end
         end
       end
       return cfgListsTable
     else
       kong.log.err("Not a valid GraphQL Document.")
+      return nil
     end
-    return cfgListsTable
   end
   return nil
 end

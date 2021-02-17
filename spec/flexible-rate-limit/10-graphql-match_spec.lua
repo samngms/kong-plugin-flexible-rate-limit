@@ -36,6 +36,14 @@ for _, strategy in helpers.each_strategy() do
                   cost = 100 
                 }
               },
+              ["viewToken"] = {
+                [1] = {
+                  redis_key = "viewToken-${graphql.root}-${graphql.type}",
+                  window = 1000,
+                  limit = 5,
+                  cost = 100 
+                }
+              },
               ["me2"] = {
                 [1] = {
                   redis_key = "meme-${graphql.root}-${graphql.type}",
@@ -62,17 +70,9 @@ for _, strategy in helpers.each_strategy() do
               }
             },
             ["mutation"] = {
-              ["mutateMe"] = {
+              ["deleteToken"] = {
                 [1] = {
                   redis_key = "${graphql.root}-${graphql.type}-${graphql.root.input.accountID}",
-                  window = 1000,
-                  limit = 5,
-                  cost = 1
-                }
-              },
-              ["mutaMe2"] = {
-                [1] = {
-                  redis_key = "mutaMeMe-${graphql.root}-${graphql.type}",
                   window = 1000,
                   limit = 5,
                   cost = 1
@@ -152,16 +152,20 @@ for _, strategy in helpers.each_strategy() do
 
     describe("testing ", function()
 
-      it("query 10 requests in 1 batch, only rate limit second query in same document", function()
+      it("10 viewToken query requests", function()
         for i = 1, 10, 1 do
           local r = assert(client:send {
             method = "POST",
             path = "/post",
             headers = {
               host = "postman-echo.com",
-              ["Content-Type"] = "application/x-www-form-urlencoded"
+              ["Content-Type"] = "application/json"
             },
-            body = "query { me { name } } \n query { you { name } }"
+            body = [[
+                {"query":"query viewToken { viewToken { token } }",
+                  "variables": {"email":"test1"}
+                }
+                ]]
           })
           if i <= 5 then
             assert.response(r).has.status(200)
@@ -172,30 +176,39 @@ for _, strategy in helpers.each_strategy() do
         socket.sleep(1)
       end)
 
-      it("single GraphQL request with too many queries over configured maximum cost ", function()
+      it("1 request with 4 viewToken queries (over configured maximum cost)", function()
         local r = assert(client:send {
           method = "POST",
           path = "/post",
           headers = {
             host = "postman-echo.com",
-            ["Content-Type"] = "application/x-www-form-urlencoded"
+            ["Content-Type"] = "application/json"
           },
-          body = "query { you { name } } \n query { you { name } } \n query { you { name } }"
+          body = [[
+            {"query":"query viewToken { viewToken { token } } \n query viewToken { viewToken { token } } \n
+            query viewToken { viewToken { token } } \n query viewToken { viewToken { token } }",
+              "variables": {"email":"test1"}
+            }
+            ]]
         })
         assert.response(r).has.status(488)
         socket.sleep(1)
       end)
 
-      it("query with input args, 10 requests in 1 batch", function()
+      it("10 deleteToken mutations, with variable", function()
         for i = 1, 10, 1 do
           local r = assert(client:send {
             method = "POST",
             path = "/post",
             headers = {
               host = "postman-echo.com",
-              ["Content-Type"] = "application/x-www-form-urlencoded"
+              ["Content-Type"] = "application/json"
             },
-            body = "query { testinput(id: 3, meme: 2) { name } }"
+            body = [[
+              {"query":"mutation deleteToken($accountID: ID!) { deleteToken (accountID: $id) { token } }",
+                "variables": {"id":123}
+              }  
+            ]]
           })
           if i <= 5 then
             assert.response(r).has.status(200)
@@ -206,43 +219,21 @@ for _, strategy in helpers.each_strategy() do
         socket.sleep(1)
       end)
 
-      it("mutation 10 requests in 1 batch", function()
-        for i = 1, 10, 1 do
-          local r = assert(client:send {
-            method = "POST",
-            path = "/post",
-            headers = {
-              host = "postman-echo.com",
-              ["Content-Type"] = "application/x-www-form-urlencoded"
-            },
-            body = 'mutation { mutateMe(accountID: 123, arg2: 456) { return fields}}'
-          })
-          if i <= 5 then
-            assert.response(r).has.status(200)
-          else
-            assert.response(r).has.status(488)
-          end
-        end
-        socket.sleep(1)
-      end)
+      it("2 viewToken query in 1 request (within cost limit)", function()
 
-      it("batched, 10 requests in 1 batch", function()
-        for i = 1, 10, 1 do
-          local r = assert(client:send {
-            method = "POST",
-            path = "/post",
-            headers = {
-              host = "postman-echo.com",
-              ["Content-Type"] = "application/x-www-form-urlencoded"
-            },
-            body = 'query { me2 { name } } query { me3 { name } }'
-          })
-          if i <= 5 then
-            assert.response(r).has.status(200)
-          else
-            assert.response(r).has.status(488)
-          end
-        end
+        local r = assert(client:send {
+          method = "POST",
+          path = "/post",
+          headers = {
+            host = "postman-echo.com",
+            ["Content-Type"] = "application/json"
+          },
+          body = [[
+            {"query":"query viewToken { viewToken { token } } \n query viewToken { viewToken { token } } "
+          }
+          ]]
+        })
+        assert.response(r).has.status(200)
         socket.sleep(1)
       end)
 
@@ -252,7 +243,7 @@ for _, strategy in helpers.each_strategy() do
             path = "/post",
             headers = {
               host = "postman-echo.com",
-              ["Content-Type"] = "application/x-www-form-urlencoded"
+              ["Content-Type"] = "application/json"
             },
             body = 'no query'
           })
