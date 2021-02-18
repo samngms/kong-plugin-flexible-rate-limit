@@ -28,44 +28,12 @@ for _, strategy in helpers.each_strategy() do
         graphql_match = {
           ["/post"] = {
             ["query"] = {
-              ["you"] = {
-                [1] = {
-                  redis_key = "you-${graphql.root}-${graphql.type}",
-                  window = 1000,
-                  limit = 5,
-                  cost = 100 
-                }
-              },
               ["viewToken"] = {
                 [1] = {
                   redis_key = "viewToken-${graphql.root}-${graphql.type}",
                   window = 1000,
                   limit = 5,
                   cost = 100 
-                }
-              },
-              ["me2"] = {
-                [1] = {
-                  redis_key = "meme-${graphql.root}-${graphql.type}",
-                  window = 1000,
-                  limit = 5,
-                  cost = 1
-                }
-              },
-              ["me3"] = {
-                [1] = {
-                  redis_key = "mememe-${graphql.root}-${graphql.type}",
-                  window = 1000,
-                  limit = 5,
-                  cost = 1
-                }
-              },
-              ["testinput"] = {
-                [1] = {
-                  redis_key = "test-input",
-                  window = 1000,
-                  limit = 5,
-                  cost = 1
                 }
               }
             },
