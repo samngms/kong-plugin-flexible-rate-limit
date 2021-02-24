@@ -24,36 +24,54 @@ for _, strategy in helpers.each_strategy() do
         redis_port = 6379,
         debug = true,
         err_code = 488,
-        graphql_request_cost = 200,
+        -- graphql_request_cost = 200,
         graphql_match = {
           ["/post"] = {
-            ["query"] = {
-              ["viewToken"] = {
-                [1] = {
-                  redis_key = "viewToken-${graphql.root}-${graphql.type}",
-                  window = 1000,
-                  limit = 5,
-                  cost = 100 
+            request_cost = 200,
+            structure = {
+              ["query"] = {
+                ["viewToken"] = {
+                  [1] = {
+                    redis_key = "viewToken-${graphql.root}-${graphql.type}",
+                    window = 1000,
+                    limit = 5,
+                    operation_cost = 100 
+                  }
+                }
+              },
+              ["mutation"] = {
+                ["deleteToken"] = {
+                  [1] = {
+                    redis_key = "${graphql.root}-${graphql.type}-${graphql.root.input.accountID}",
+                    window = 1000,
+                    limit = 5,
+                    operation_cost = 1
+                  }
+                }
+              },
+              ["subscription"] = {
+                ["subscribeMe"] = {
+                  [1] = {
+                    redis_key = "subscribe-Me${graphql.root}-${graphql.type}-${graphql.depth}",
+                    window = 1000,
+                    limit = 5, 
+                    operation_cost = 1
+                  }
                 }
               }
-            },
-            ["mutation"] = {
-              ["deleteToken"] = {
-                [1] = {
-                  redis_key = "${graphql.root}-${graphql.type}-${graphql.root.input.accountID}",
-                  window = 1000,
-                  limit = 5,
-                  cost = 1
-                }
-              }
-            },
-            ["subscription"] = {
-              ["subscribeMe"] = {
-                [1] = {
-                  redis_key = "subscribe-Me${graphql.root}-${graphql.type}-${graphql.depth}",
-                  window = 1000,
-                  limit = 5, 
-                  cost = 1
+            }
+          },
+          ["/graphql"] = {
+            request_cost = 200,
+            structure = {
+              ["query"] = {
+                ["CreateToken"] = {
+                  [1] = {
+                    redis_key = "CreateToken-${graphql.root}-${graphql.type}",
+                    window = 1000,
+                    limit = 5,
+                    operation_cost = 100 
+                  }
                 }
               }
             }

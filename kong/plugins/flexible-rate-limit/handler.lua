@@ -56,7 +56,6 @@ function getCfgLists(config, request, path)
     end
   end
 
-  -- completely rewrite this sectionn
   local gqlCfg = config.graphql_match and config.graphql_match[path]
   if nil ~= gqlCfg and type(gqlCfg) == "table" then
     local requestBody = request.get_body()
@@ -68,7 +67,7 @@ function getCfgLists(config, request, path)
     if nil ~= gqlTable then
       for _, gqlOperation in pairs(gqlTable:listOps()) do
         for _, gqlRoot in pairs(gqlOperation:getRootFields()) do
-          local cfgList = gqlCfg[gqlOperation["type"]][gqlRoot["name"]]
+          local cfgList = gqlCfg["structure"][gqlOperation["type"]][gqlRoot["name"]]
           if nil ~= cfgList then 
             -- this is not a elegant approach, but it can avoid parsing the GQL twice (avoid another time in interpolation)
             cfgList.gql_type = gqlOperation["type"]
@@ -76,9 +75,8 @@ function getCfgLists(config, request, path)
             cfgList.gql_depth = gqlTable:nestDepth()
             cfgList.cfg_type = "gql"
             if nil ~= requestBody["variables"] then
-               
-              --kong.log.debug(type(cjson.decode(requestBody["variables"])))
-              pcall( function() cfgList.gql_root_args = gqlTable:listOps()[1]:getRootFields()[1]:resolveArgument(cjson.encode(requestBody["variables"])) end ) 
+              kong.log.debug(requestBody["variables"])
+              cfgList.gql_variables = requestBody["variables"]
             end
             table.insert(cfgListsTable, cfgList) 
           end
@@ -208,12 +206,12 @@ function plugin:access(config)
     for _, cfg in ipairs(cfgList) do
 
       if cfgList.cfg_type == "gql" then
-        gqlCostCounter = gqlCostCounter + cfg.cost
+        gqlCostCounter = gqlCostCounter + cfg.operation_cost
 
         -- Check if the GraphQL cost of the single request exceeds the limit configured by schema
-        if gqlCostCounter > config.graphql_request_cost then 
+        if gqlCostCounter > config.graphql_match[path].request_cost then 
           if debug then
-            kong.log.debug("Exceeded single request GraphQL cost limit of " .. config.graphql_request_cost)
+            kong.log.debug("Exceeded single request GraphQL cost limit of " .. config.graphql_match[path].request_cost)
           end
           kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
         end

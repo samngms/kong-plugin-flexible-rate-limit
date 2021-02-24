@@ -112,15 +112,11 @@ local function resolve(key, url, method, ip, request, list)
         subStringCount = subStringCount + 1
       end
 
-      -- set up this structure, may be more useful in the future
-      -- for now it can resolve only resolve ROOT inputs, but for any graphql.root.input.variable
       if subStrings[subStringCount - 1] == "input" and subStrings[subStringCount - 2] == "root" then
         local configuredInputKey = subStrings[subStringCount]
-        for inputKey, inputKeyTable in pairs(list.gql_root_args) do
-          for _, inputValue in pairs(inputKeyTable) do
-            if inputKey == configuredInputKey then
-              return inputValue
-            end
+        for inputKey, inputValue in pairs(list.gql_variables) do
+          if inputKey == configuredInputKey then
+            return inputValue
           end
         end
       end
