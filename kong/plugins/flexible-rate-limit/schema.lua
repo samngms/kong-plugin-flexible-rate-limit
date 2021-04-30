@@ -1,5 +1,13 @@
 local typedefs = require "kong.db.schema.typedefs"
 
+-- unused GraphQL Root Type Definition, may consider later
+--[[local GQL_ROOT_TYPES = {
+  "query",
+  "mutation",
+  "subscription"
+}
+]]--
+
 return {
   name = "flexible-rate-limit",
   fields = {
@@ -19,6 +27,7 @@ return {
         { pool_size = { type = "number" } },
         { backlog = { type = "number" } },
         { timeout = { type = "number" } },
+        --{ graphql_request_cost = { type = "number" } },
         { exact_match = {
           type = "map",
           -- the key is the path of the url
@@ -74,6 +83,47 @@ return {
                 }
               }
             }              
+          }
+        }},
+        { graphql_match = {
+          type = "map",
+          -- first key is the GraphQL path
+          keys = {
+            type = "string"
+          }, 
+          values = {
+            type = "record",
+            fields = {
+              { request_cost = { type = "number" } },
+              { structure = {
+                type = "map",
+                -- second key is the GraphQL root type
+                keys = {
+                  type = "string"
+                },
+                values = {
+                  type = "map",
+                  -- third key is the GraphQL root field
+                  keys = {
+                    type = "string"
+                  },
+                  values = {
+                    type = "array",
+                    elements = {
+                      type = "record",
+                      fields = {
+                        { err_code = { type = "number" } },
+                        { err_msg = { type = "string" } },
+                        { redis_key = { type = "string", required = true } },
+                        { window = { type = "number", default = 1 } },
+                        { limit = { type = "number", required = true } },
+                        { operation_cost = { type = "number", required = true } }, -- added this for GraphQL cost calculation 
+                      }
+                    }
+                  }
+                }
+              }}
+            }
           }
         }}
       }

@@ -12,6 +12,10 @@ local redis = require("resty.redis")
 local socket = require("socket")
 local util = require("kong.plugins.flexible-rate-limit.string_util")
 
+-- load graphql-parser
+local GqlParser = require("graphql-parser")
+local cjson = require("cjson")
+
 local sock_err_count = 0
 local sock_err_time = 0
 
@@ -30,23 +34,60 @@ function tableContains(table, element)
   return false
 end
 
-function getCfgList(config, request, path) 
+function getCfgLists(config, request, path) 
+  -- creating the empty cfgLists here
+  local cfgListsTable = {}
+
   local urlCfg = config.exact_match and config.exact_match[path]
   if nil ~= urlCfg and type(urlCfg) == "table" then
     -- if the method is GET, then we try "GET" and "*"
     local cfgList = urlCfg[request.get_method()] or urlCfg["*"]
-    if nil ~= cfgList then return cfgList end
+    if nil ~= cfgList then table.insert(cfgListsTable, cfgList) end -- before returning, put it into first index of array for cfgLists
+    return cfgListsTable
   end
   
   if config.pattern_match and type(config.pattern_match) == "table" then
     for pattern, urlCfg in pairs(config.pattern_match) do
       if string.match(path, pattern) then
         local cfgList = urlCfg[request.get_method()] or urlCfg["*"]
-        if nil ~= cfgList then return cfgList end
+        if nil ~= cfgList then table.insert(cfgListsTable, cfgList) end -- before returning, put it into first index of array for cfgLists
+        return cfgListsTable
       end
     end
   end
 
+  local gqlCfg = config.graphql_match and config.graphql_match[path]
+  if nil ~= gqlCfg and type(gqlCfg) == "table" then
+    local requestBody = request.get_body()
+    local gqlTable
+
+    --if containsGql then
+    local parser = GqlParser:new()
+    pcall(function() gqlTable = parser:parse(requestBody["query"]) end)
+    if nil ~= gqlTable then
+      for _, gqlOperation in pairs(gqlTable:listOps()) do
+        for _, gqlRoot in pairs(gqlOperation:getRootFields()) do
+          local cfgList = gqlCfg["structure"][gqlOperation["type"]][gqlRoot["name"]]
+          if nil ~= cfgList then 
+            -- this is not a elegant approach, but it can avoid parsing the GQL twice (avoid another time in interpolation)
+            cfgList.gql_type = gqlOperation["type"]
+            cfgList.gql_root = gqlRoot["name"] 
+            cfgList.gql_depth = gqlTable:nestDepth()
+            cfgList.cfg_type = "gql"
+            if nil ~= requestBody["variables"] then
+              kong.log.debug(requestBody["variables"])
+              cfgList.gql_variables = requestBody["variables"]
+            end
+            table.insert(cfgListsTable, cfgList) 
+          end
+        end
+      end
+      return cfgListsTable
+    else
+      kong.log.err("Not a valid GraphQL Document.")
+      return nil
+    end
+  end
   return nil
 end
 
@@ -82,8 +123,8 @@ function plugin:access(config)
     end
   end
 
-  local cfgList = getCfgList(config, kong.request, path)
-  if nil == cfgList then
+  local cfgLists = getCfgLists(config, kong.request, path)
+  if nil == cfgLists then
     if debug then
       kong.log.debug("Not rate limited: " .. kong.request.get_method() .. " " .. path)
     end
@@ -158,74 +199,92 @@ function plugin:access(config)
     plugin.redis_script_hash = hash
   end
 
-  for i, cfg in ipairs(cfgList) do
-    local redis_key = util.interpolate(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
-    if debug then
-      kong.log.debug("Rate limit redis_key: " .. path .. " -> " .. redis_key)
-    end
-    local trigger = true
-    -- the additonal part for trigger condition
-    if cfg.trigger_condition then
-      local trigger_condition = util.interpolate( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request)
-      if debug then
-        kong.log.debug("Trigger condition: " .. trigger_condition)
-      end
-      if nil ~= cfg.trigger_values and type(cfg.trigger_values) == "table" then
-        if nil ~= cfg.not_trigger_values and type(cfg.not_trigger_values) == "table" then
-          kong.log.warn("Use of trigger_condition should have either trigger_values or not_trigger_values, but both are defined for: " .. cfg.redis_key)
-        end
-        trigger = tableContains(cfg.trigger_values, trigger_condition)
-      elseif nil ~= cfg.not_trigger_values and type(cfg.not_trigger_values) == "table" then
-        trigger = (not tableContains(cfg.not_trigger_values, trigger_condition))
-      end
-    end
-    if trigger then
-      -- rate limitation counting logic
-      local w = cfg.window or 1000
-      if w <= 10 then w = w * 1000 end
-      local count
-      count, err = rd:evalsha(plugin.redis_script_hash, 2, redis_key, w)
-      if not count then
-        kong.log.err("Error calling redis.evalsha(): result: " .. tostring(count) .. ", error: " .. tostring(err))
-        if string.match(tostring(err), "^NOSCRIPT") then
-          -- script will be re-upload next time
-          plugin.redis_script_hash = nil
-          -- no script, no need to continue
-          rd:close()
-          return
-        end
-      else
-        if count > cfg.limit then
-          -- there is a race condition in the old implementation, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
-          -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
-          local x = count - cfg.limit
-          local invalid_key = false
-          -- we will check when x = 1, 2, 3, 4, 10, 20, 30, ....
-          if (x <= 4) or ((x % 10) == 0) then
-            local ttl = rd:pttl(redis_key)
-            -- "-1" means no ttl, if we see this, we need to delete the key
-            if ttl == -1 then
-              kong.log.err("Redis key exists but has no associated expire, will delete it: " .. redis_key)
-              local ans
-              ans, err = rd:del(redis_key)
-              if nil == ans then
-                kong.log.err("Error deleting Redis key: " .. redis_key .. ", reason: " .. tostring(err))
-              end
-              invalid_key = true
-            end
+  local gqlCostCounter = 0
+
+  -- Loop through each Config List 
+  for _, cfgList in ipairs(cfgLists) do 
+    for _, cfg in ipairs(cfgList) do
+
+      if cfgList.cfg_type == "gql" then
+        gqlCostCounter = gqlCostCounter + cfg.operation_cost
+
+        -- Check if the GraphQL cost of the single request exceeds the limit configured by schema
+        if gqlCostCounter > config.graphql_match[path].request_cost then 
+          if debug then
+            kong.log.debug("Exceeded single request GraphQL cost limit of " .. config.graphql_match[path].request_cost)
           end
-          if not invalid_key then
-            -- remember to cloes redis after use
-            rd:set_keepalive()
-            -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
-            kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+          kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+        end
+      end
+
+      local redis_key = util.interpolate(cfg.redis_key, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request, cfgList)
+      if debug then
+        kong.log.debug("Rate limit redis_key: " .. path .. " -> " .. redis_key)
+      end
+
+      local trigger = true
+      -- the additonal part for trigger condition
+      if cfg.trigger_condition then
+        local trigger_condition = util.interpolate( cfg.trigger_condition, path, kong.request.get_method(), kong.client.get_forwarded_ip(), kong.request, cfgList)
+        if debug then
+          kong.log.debug("Trigger condition: " .. trigger_condition)
+        end
+        if nil ~= cfg.trigger_values and type(cfg.trigger_values) == "table" then
+          if nil ~= cfg.not_trigger_values and type(cfg.not_trigger_values) == "table" then
+            kong.log.warn("Use of trigger_condition should have either trigger_values or not_trigger_values, but both are defined for: " .. cfg.redis_key)
+          end
+          trigger = tableContains(cfg.trigger_values, trigger_condition)
+        elseif nil ~= cfg.not_trigger_values and type(cfg.not_trigger_values) == "table" then
+          trigger = (not tableContains(cfg.not_trigger_values, trigger_condition))
+        end
+      end
+      if trigger then
+        -- rate limitation counting logic
+        local w = cfg.window or 1000
+        if w <= 10 then w = w * 1000 end
+        local count
+        count, err = rd:evalsha(plugin.redis_script_hash, 2, redis_key, w)
+        if not count then
+          kong.log.err("Error calling redis.evalsha(): result: " .. tostring(count) .. ", error: " .. tostring(err))
+          if string.match(tostring(err), "^NOSCRIPT") then
+            -- script will be re-upload next time
+            plugin.redis_script_hash = nil
+            -- no script, no need to continue
+            rd:close()
             return
+          end
+        else
+          if count > cfg.limit then
+            -- there is a race condition in the old implementation, that if somehow, we failed to call rd:pexpire(), then the key will stay here forever
+            -- therefore, we need to periodically check for the ttl, if unexpected condition detected, we will delete the key
+            local x = count - cfg.limit
+            local invalid_key = false
+            -- we will check when x = 1, 2, 3, 4, 10, 20, 30, ....
+            if (x <= 4) or ((x % 10) == 0) then
+              local ttl = rd:pttl(redis_key)
+              -- "-1" means no ttl, if we see this, we need to delete the key
+              if ttl == -1 then
+                kong.log.err("Redis key exists but has no associated expire, will delete it: " .. redis_key)
+                local ans
+                ans, err = rd:del(redis_key)
+                if nil == ans then
+                  kong.log.err("Error deleting Redis key: " .. redis_key .. ", reason: " .. tostring(err))
+                end
+                invalid_key = true
+              end
+            end
+            if not invalid_key then
+              -- remember to cloes redis after use
+              rd:set_keepalive()
+              -- if the cfg block defined err_code and err_msg, use it, otherwise, use global err_code and err_msg
+              kong.response.exit(cfg.err_code or err_code, cfg.err_msg or err_msg)
+              return
+            end
           end
         end
       end
     end
   end
-
   -- remember to cloes redis after use
   rd:set_keepalive()
 end

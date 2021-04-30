@@ -1,4 +1,6 @@
 local cjson = require("cjson")
+-- load graphql-parser
+local GqlParser = require("graphql-parser")
 
 local fourLetters = {usdt = 1, usdc = 1, tusd = 1, dash = 1, link = 1, atom = 1, hedg = 1, iota = 1, doge = 1, qtum = 1, algo = 1, nano = 1}
 
@@ -30,7 +32,7 @@ local function getJson(key, table)
   end
 end
 
-local function resolve(key, url, method, ip, request) 
+local function resolve(key, url, method, ip, request, list) 
   if key == "url" then
     return url
   elseif key == "ip" then
@@ -98,15 +100,37 @@ local function resolve(key, url, method, ip, request)
         local query = request.get_query()
         if nil == query then return key end
         return query[suffix] or key
+    elseif prefix == "graphql" then
+      if suffix == "type" then return list.gql_type end
+      if suffix == "root" then return list.gql_root end
+      if suffix == "depth" then return list.gql_depth end
+
+      local subStrings = {}
+      local subStringCount = 0
+      for subString in key:gmatch("[^%.]+") do
+        table.insert(subStrings, subString)
+        subStringCount = subStringCount + 1
+      end
+
+      if subStrings[subStringCount - 1] == "input" and subStrings[subStringCount - 2] == "root" then
+        local configuredInputKey = subStrings[subStringCount]
+        for inputKey, inputValue in pairs(list.gql_variables) do
+          if inputKey == configuredInputKey then
+            return inputValue
+          end
+        end
+      end
+
+      return key
     else
-        return key
+      return key
     end
   end
 end
 
 -- we don't use gsub because it causes the "yield" problem along if I use redis:set_keepalive()
 -- coroutine: runtime error: attempt to yield across C-call boundary
-local function interpolate(template, url, method, ip, request) 
+local function interpolate(template, url, method, ip, request, list) 
   local start = 1
   local output = ""
   while(true) do
@@ -118,7 +142,7 @@ local function interpolate(template, url, method, ip, request)
         _break = false
         output = output .. string.sub(template, start, idx-1)
         local key = string.sub(template, idx+2, _end-1)
-        output = output .. resolve(key, url, method, ip, request)
+        output = output .. resolve(key, url, method, ip, request, list)
         start = _end + 1
       end
     end
