@@ -67,8 +67,8 @@ There are two types of paths in the config, `exact_match` and `pattern_match`, w
     "GET": [
         {
             "redis_key": "rate_limit2:${url}:${header.My-Real-IP}",
-            "window": 50,
-            "limit": 10,
+            "window": 10,
+            "limit": 50,
             "trigger_condition": "${header.My-Real-IP}",
             "trigger_values": ["192.168.1.101","192.168.1.102"]
         },
