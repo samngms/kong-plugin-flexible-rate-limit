@@ -1,3 +1,4 @@
 .vscode
 *.rock
 servroot/
+.idea/
